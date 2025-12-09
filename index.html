@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures (Perp USDT) — EMA200 Touch Scanner + Trade Setup</title>
+  <title>Binance Futures (Perp USDT) — EMA70/EMA200 Cross Scanner + Trade Setup</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: Inter, Roboto, Arial; background:#0f1720; color:#e6eef8; margin:16px; }
@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <h1>Binance Futures (Perp USDT) — EMA200 Touch Scanner + Trade Setup</h1>
+  <h1>Binance Futures (Perp USDT) — EMA70/EMA200 Cross Scanner + Trade Setup</h1>
 
   <div class="controls">
     <button id="startPoll">Start Live Polling</button>
@@ -50,7 +50,7 @@
       <input id="batchDelay" type="number" min="300" value="1200" style="width:80px; margin-left:6px;">
     </label>
 
-    <button id="analyze" class="secondary">Analyze EMA200 Touch</button>
+    <button id="analyze" class="secondary">Analyze EMA Crosses</button>
 
     <label class="chip">
       <input id="autoAnalyzeToggle" type="checkbox" /> Auto-analyze on poll
@@ -75,6 +75,11 @@
       <input id="tp2AtrMult" type="number" step="0.1" min="0.1" value="3.0" style="width:64px; margin-left:6px;">
     </label>
 
+    <label class="chip">
+      Cross window:
+      <input id="crossWindow" type="number" min="1" value="3" style="width:56px; margin-left:6px;" />
+    </label>
+
     <div class="status" id="status">idle</div>
   </div>
 
@@ -88,7 +93,7 @@
             <th>Last</th>
             <th>24h %</th>
             <th>QuoteVol</th>
-            <th>200EMA Touch</th>
+            <th>EMA Cross</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -96,12 +101,12 @@
     </div>
 
     <div style="width:760px;">
-      <div class="muted">Top EMA200 candidates + trade setups</div>
+      <div class="muted">Top EMA cross candidates + trade setups</div>
       <table id="topTable">
         <thead>
           <tr>
             <th>Symbol</th>
-            <th>Touch</th>
+            <th>Cross</th>
             <th>Dir</th>
             <th class="small">Entry</th>
             <th class="small">Stop</th>
@@ -116,9 +121,9 @@
       <div class="muted" style="margin-top:8px; font-size:12px;">
         Notes:
         <ul style="margin:6px 0 0 18px; padding:0;">
-          <li>Stop and TP are ATR-based (14 × 15m ATR). ATR multiplier controls are above.</li>
-          <li>Entry displayed is the latest close. Use retest/conservative entry if you prefer — treat these as suggested levels, not orders.</li>
-          <li>Adjust multipliers to tune risk profile. Consider lower maxAnalyze when Auto-analyze is ON.</li>
+          <li>Cross detection: EMA70 crossing EMA200 inside the last <span id="cwDisplay">3</span> candles (configurable).</li>
+          <li>Setups are ATR-based (14 × 15m ATR). Entry uses the last close; adjust if you prefer 'wait for retest'.</li>
+          <li>Adjust multipliers / batch settings for your network and rate-limit comfort.</li>
         </ul>
       </div>
     </div>
@@ -129,9 +134,8 @@
   const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
   const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
   const INTERVAL = '15m';
-  const LOOKBACK_EMA200 = 220; // >=200 for EMA200
-  const EMA200_TOL_PCT = 0.05; // proximity tolerance (percent)
-  // Blacklist (keeps your entries)
+  const LOOKBACK_EMA200 = 240; // we need at least 200 + some buffer; 240 is safe
+  // Blacklist
   const blacklist = [
     "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
     "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
@@ -156,6 +160,12 @@
   const stopAtrMultInput = document.getElementById('stopAtrMult');
   const tp1AtrMultInput = document.getElementById('tp1AtrMult');
   const tp2AtrMultInput = document.getElementById('tp2AtrMult');
+  const crossWindowInput = document.getElementById('crossWindow');
+  const cwDisplay = document.getElementById('cwDisplay');
+
+  cwDisplay.textContent = crossWindowInput.value;
+
+  crossWindowInput.addEventListener('change', () => { cwDisplay.textContent = crossWindowInput.value; });
 
   let pollTimer = null;
   let latestTickers = [];
@@ -179,7 +189,6 @@
         priceChangePercent: Number(t.priceChangePercent),
         quoteVolume: Number(t.quoteVolume)
       }))
-      // sort by quote volume desc so high-liquidity pairs are on top (easier to scan first)
       .sort((a,b) => (b.quoteVolume || 0) - (a.quoteVolume || 0));
   }
 
@@ -193,7 +202,7 @@
         <td class="num">${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
         <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
         <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="small" id="ema200-${item.symbol}">—</td>
+        <td class="small" id="cross-${item.symbol}">—</td>
       `;
       pairsTbody.appendChild(tr);
     });
@@ -203,12 +212,12 @@
     topTbody.innerHTML = '';
     results.forEach(r => {
       const tr = document.createElement('tr');
-      const touchText = r.strictTouch ? 'wick-cross' : (r.closeNear ? `close~${r.closePct.toFixed(3)}%` : 'no');
-      const touchCls = r.strictTouch ? 'green' : (r.closeNear ? '' : 'small');
-      const dirCls = r.direction === 'LONG' ? 'green' : (r.direction === 'SHORT' ? 'red' : 'small');
+      const crossText = r.crossType === 'BULL' ? 'EMA70>EMA200 (bull)' : 'EMA70<EMA200 (bear)';
+      const crossCls = r.crossType === 'BULL' ? 'green' : 'red';
+      const dirCls = r.direction === 'LONG' ? 'green' : 'red';
       tr.innerHTML = `
         <td><strong>${r.symbol}</strong></td>
-        <td class="${touchCls}">${touchText}</td>
+        <td class="${crossCls}">${crossText}</td>
         <td class="${dirCls}">${r.direction}</td>
         <td class="num">${r.entry.toFixed(r.prec)}</td>
         <td class="num">${r.stop.toFixed(r.prec)}</td>
@@ -221,7 +230,7 @@
     });
   }
 
-  // EMA series (needed to calculate EMA200)
+  // EMA series
   function emaSeries(values, period) {
     if (values.length < period) return null;
     const k = 2 / (period + 1);
@@ -253,24 +262,59 @@
     return atr;
   }
 
-  function checkEMA200Touch(klines) {
-    if (!klines || klines.length < 200) return { ok: false };
+  // Detect recent EMA70/EMA200 cross within crossWindow candles (default 3)
+  function checkEMACross(klines, crossWindow = 3) {
+    if (!klines || klines.length < 210) return { ok:false };
     const closes = klines.map(k=>k.c);
-    const highs = klines.map(k=>k.h);
-    const lows  = klines.map(k=>k.l);
-    const ema200Series = emaSeries(closes, 200);
-    if (!ema200Series) return { ok: false };
-    const ema200Latest = ema200Series[ema200Series.length - 1];
-    if (!ema200Latest) return { ok: false };
-    const lastH = highs[highs.length - 1];
-    const lastL = lows[lows.length - 1];
-    const lastC = closes[closes.length - 1];
+    const ema70 = emaSeries(closes, 70);
+    const ema200 = emaSeries(closes, 200);
+    if (!ema70 || !ema200) return { ok:false };
 
-    const strictTouch = (lastH >= ema200Latest && lastL <= ema200Latest);
-    const closePct = Math.abs(lastC - ema200Latest) / ema200Latest * 100;
-    const closeNear = closePct <= EMA200_TOL_PCT;
+    // We'll check the sign of (ema70 - ema200) for the last crossWindow+1 points
+    const diff = [];
+    const n = ema70.length;
+    for (let i = n - (crossWindow + 1); i < n; i++) {
+      if (i >= 0) diff.push(ema70[i] - ema200[i]);
+    }
+    if (diff.length < 2) return { ok:false };
 
-    return { ok:true, ema200: ema200Latest, strictTouch, closeNear, closePct, lastClose:lastC, lastLow:lastL, lastHigh:lastH, closes, highs, lows };
+    // Look for a sign change in diff: negative->positive = bullish, positive->negative = bearish
+    let crossType = null;
+    let crossIndexFromEnd = null; // 0 => latest candle, 1 => previous, etc.
+    for (let j = 1; j < diff.length; j++) {
+      const prev = diff[j-1];
+      const cur = diff[j];
+      if (prev <= 0 && cur > 0) {
+        crossType = 'BULL'; // ema70 crossed above ema200
+        crossIndexFromEnd = diff.length - 1 - j;
+        break;
+      }
+      if (prev >= 0 && cur < 0) {
+        crossType = 'BEAR';
+        crossIndexFromEnd = diff.length - 1 - j;
+        break;
+      }
+    }
+
+    // also capture latest price info
+    const lastIdx = closes.length - 1;
+    const lastClose = closes[lastIdx];
+    const lastHigh = klines[lastIdx].h;
+    const lastLow = klines[lastIdx].l;
+
+    return {
+      ok: true,
+      ema70Series: ema70,
+      ema200Series: ema200,
+      crossType, // 'BULL' | 'BEAR' | null
+      crossIndexFromEnd,
+      lastClose,
+      lastHigh,
+      lastLow,
+      closes,
+      highs: klines.map(k=>k.h),
+      lows: klines.map(k=>k.l)
+    };
   }
 
   async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200) {
@@ -286,17 +330,18 @@
     }));
   }
 
-  // Only fetches EMA200 candles and checks touch — batched for safety
-  async function batchAnalyzeEMA200(symbols, batchSize=5, batchDelay=1200) {
+  // Batch analyze: fetch klines and run cross detection
+  async function batchAnalyzeCross(symbols, batchSize=5, batchDelay=1200) {
     const results = [];
+    const crossWindow = Math.max(1, Number(crossWindowInput.value) || 3);
     for (let i=0;i<symbols.length;i+=batchSize) {
       const batch = symbols.slice(i, i+batchSize);
-      setStatus(`analyzing EMA200 batch ${Math.floor(i/batchSize)+1} / ${Math.ceil(symbols.length/batchSize)}`);
+      setStatus(`analyzing cross batch ${Math.floor(i/batchSize)+1} / ${Math.ceil(symbols.length/batchSize)}`);
       const promises = batch.map(async sym => {
         try {
           const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
-          const emaChk = checkEMA200Touch(kl);
-          return { sym, emaChk, kl };
+          const chk = checkEMACross(kl, crossWindow);
+          return { sym, chk, kl };
         } catch (e) {
           return { sym, error: e.message || String(e) };
         }
@@ -307,7 +352,7 @@
         await new Promise(r => setTimeout(r, batchDelay));
       }
     }
-    setStatus('EMA200 analysis complete');
+    setStatus('EMA cross analysis complete');
     return results;
   }
 
@@ -349,45 +394,40 @@
     setTimeout(()=>playBeep(1568, 60, 0.06), 220);
   }
 
-  // Trade setup builder using ATR
-  function buildTradeSetup(sym, emaChk, klines) {
-    // returns null if emaChk not ok
-    if (!emaChk || !emaChk.ok) return null;
+  // Trade setup builder using ATR, direction from cross
+  function buildTradeSetupByCross(sym, chk, klines) {
+    if (!chk || !chk.ok || !chk.crossType) return null;
     const atr = computeATR(klines.slice(-40), 14) || computeATR(klines, 14) || 0;
     const stopAtrMult = Math.max(0.1, Number(stopAtrMultInput.value) || 0.8);
     const tp1AtrMult = Math.max(0.1, Number(tp1AtrMultInput.value) || 1.5);
     const tp2AtrMult = Math.max(0.1, Number(tp2AtrMultInput.value) || 3.0);
 
-    const lastClose = emaChk.lastClose;
-    const lastLow = emaChk.lastLow;
-    const lastHigh = emaChk.lastHigh;
-    const ema200 = emaChk.ema200;
+    const lastClose = chk.lastClose;
+    const lastLow = chk.lastLow;
+    const lastHigh = chk.lastHigh;
 
-    // determine precision (decimal places) from price
+    // precision
     let prec = 4;
     if (lastClose >= 100) prec = 2;
     else if (lastClose >= 10) prec = 3;
     else if (lastClose < 1) prec = 6;
 
-    let direction = lastClose >= ema200 ? 'LONG' : 'SHORT';
-
-    // conservative entry = lastClose
+    // direction from cross
+    const direction = chk.crossType === 'BULL' ? 'LONG' : 'SHORT';
     const entry = lastClose;
 
-    // stop calculation:
-    // For LONG: stop = min(lastLow - ATR*stopAtrMult, ema200 - ATR * 0.25)
-    // For SHORT: stop = max(lastHigh + ATR*stopAtrMult, ema200 + ATR * 0.25)
     let stop;
     if (direction === 'LONG') {
-      stop = Math.min(lastLow - atr * stopAtrMult, ema200 - atr * 0.25);
-      // ensure stop is below entry
+      // place stop below recent low and below EMA200 (safe)
+      const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
+      stop = Math.min(lastLow - atr * stopAtrMult, (ema200Latest ? ema200Latest - atr * 0.25 : lastLow - atr*stopAtrMult));
       if (stop >= entry) stop = entry - Math.max(atr * 0.2, (entry * 0.0005));
     } else {
-      stop = Math.max(lastHigh + atr * stopAtrMult, ema200 + atr * 0.25);
+      const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
+      stop = Math.max(lastHigh + atr * stopAtrMult, (ema200Latest ? ema200Latest + atr * 0.25 : lastHigh + atr*stopAtrMult));
       if (stop <= entry) stop = entry + Math.max(atr * 0.2, (entry * 0.0005));
     }
 
-    // TP's
     let tp1, tp2;
     if (direction === 'LONG') {
       tp1 = entry + atr * tp1AtrMult;
@@ -397,12 +437,10 @@
       tp2 = entry - atr * tp2AtrMult;
     }
 
-    // Risk and rewards
     const risk = Math.abs(entry - stop);
     const rr1 = risk > 0 ? Math.abs(tp1 - entry) / risk : 0;
     const rr2 = risk > 0 ? Math.abs(tp2 - entry) / risk : 0;
 
-    // sanity checks: ensure tp/stop non-zero
     return {
       symbol: sym,
       direction,
@@ -413,88 +451,83 @@
       rr1,
       rr2,
       atr,
-      prec: prec
+      prec
     };
   }
 
-  // Central handler for EMA results & sounds + build setups
-  async function handleEMAResultsAndPlaySound(results) {
-    const touched = [];
+  // Handle results: mark pairs table, build setups, play sounds
+  async function handleCrossResultsAndPlaySound(results) {
+    const detected = [];
     results.forEach(r => {
-      const idE = 'ema200-' + r.sym;
-      const cellE = document.getElementById(idE);
-      if (cellE) {
-        if (r.emaChk && r.emaChk.ok) {
-          const txt = r.emaChk.strictTouch ? 'wick-cross' : (r.emaChk.closeNear ? `close~${r.emaChk.closePct.toFixed(3)}%` : 'no');
-          cellE.textContent = txt;
-          if (r.emaChk.strictTouch || r.emaChk.closeNear) cellE.classList.add('green'); else cellE.classList.remove('green');
+      const id = 'cross-' + r.sym;
+      const cell = document.getElementById(id);
+      if (cell) {
+        if (r.chk && r.chk.ok && r.chk.crossType) {
+          const txt = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
+          cell.textContent = txt;
+          cell.classList.remove('green','red');
+          cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
         } else {
-          cellE.textContent = 'n/a';
+          cell.textContent = '—';
+          cell.classList.remove('green','red');
         }
       }
 
-      if (r.emaChk && r.emaChk.ok && (r.emaChk.strictTouch || r.emaChk.closeNear)) {
-        // build trade setup using the same klines used for ema
-        const setup = buildTradeSetup(r.sym, r.emaChk, r.kl || r.klines || []);
+      if (r.chk && r.chk.ok && r.chk.crossType) {
+        const setup = buildTradeSetupByCross(r.sym, r.chk, r.kl || []);
         if (setup) {
-          touched.push({
+          detected.push({
             symbol: r.sym,
-            strictTouch: r.emaChk.strictTouch,
-            closeNear: r.emaChk.closeNear,
-            closePct: r.emaChk.closePct,
+            crossType: r.chk.crossType,
+            crossIndexFromEnd: r.chk.crossIndexFromEnd,
+            closePct: Math.abs(r.chk.lastClose - (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose))/ (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose) * 100,
             ...setup
           });
         }
       }
     });
 
-    // play per-symbol beep (only if sound enabled)
-    if (soundToggle.checked && touched.length > 0) {
+    if (soundToggle.checked && detected.length > 0) {
       playNotification();
       let delay = 360;
-      touched.slice(0, 10).forEach(t => { // limit to 10 beeps
+      detected.slice(0,10).forEach(d => {
         setTimeout(() => {
-          if (t.strictTouch) {
-            playBeep(900, 120, 0.11);
-          } else {
-            playBeep(1400, 80, 0.08);
-          }
+          if (d.crossType === 'BULL') playBeep(1400, 90, 0.09);
+          else playBeep(900, 120, 0.11);
         }, delay);
         delay += 140;
       });
     }
 
-    // sort: strict touch first, then best rr1 then closePct
-    touched.sort((a,b) => {
-      if ((a.strictTouch?1:0) !== (b.strictTouch?1:0)) return (b.strictTouch?1:0) - (a.strictTouch?1:0);
+    // sort: bull first (you can change sorting preferences)
+    detected.sort((a,b) => {
+      if (a.crossType !== b.crossType) return a.crossType === 'BULL' ? -1 : 1;
       if (b.rr1 !== a.rr1) return b.rr1 - a.rr1;
       return a.closePct - b.closePct;
     });
 
-    renderTop(touched.slice(0,50));
-    setStatus(`EMA200 analysis finished. ${touched.length} symbols with setups`);
+    renderTop(detected.slice(0,50));
+    setStatus(`EMA cross analysis finished. ${detected.length} symbols with cross setups`);
   }
 
-  // Poll tickers once and update UI (auto-analyze integration)
+  // Poll tickers and optionally auto-analyze
   async function pollTickersOnce() {
     try {
       const raw = await safeFetch(TICKER_24H);
       const filtered = filterTickers(raw);
       latestTickers = filtered;
-      renderPairs(filtered.slice(0,500)); // cap UI table
+      renderPairs(filtered.slice(0,500));
       setStatus(`polled ${raw.length} tickers, ${filtered.length} USDT perpetuals (blacklist removed)`);
 
-      // Auto-run EMA200 analysis if enabled
       if (autoAnalyzeToggle.checked) {
-        // unlock audio if user already clicked start
         ensureAudioContext();
         const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
         const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
         const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
         const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-        setStatus(`(auto) starting EMA200 analysis for ${toAnalyze.length} symbols...`);
-        const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
-        await handleEMAResultsAndPlaySound(results);
+        setStatus(`(auto) starting EMA cross analysis for ${toAnalyze.length} symbols...`);
+        const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
+        await handleCrossResultsAndPlaySound(results);
       }
     } catch (e) {
       setStatus('poll error: ' + e.message);
@@ -506,7 +539,6 @@
   startBtn.onclick = () => {
     const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
     if (pollTimer) clearInterval(pollTimer);
-    // unlock audio on user gesture
     ensureAudioContext();
     pollTickersOnce();
     pollTimer = setInterval(pollTickersOnce, interval * 1000);
@@ -527,25 +559,19 @@
       setStatus('no symbols to analyze - run poll first');
       return;
     }
-    // unlock audio on user gesture
     ensureAudioContext();
-
     const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
     const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
     const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
-
     const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-    setStatus(`starting EMA200 analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`);
-
-    const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
-
-    // Use central handler that also builds setups and plays sound
-    await handleEMAResultsAndPlaySound(results);
+    setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`);
+    const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
+    await handleCrossResultsAndPlaySound(results);
   };
 
   setStatus('idle — click "Start Live Polling"');
 
-  // optional auto-start (commented)
+  // optional auto-start
   // startBtn.click();
   </script>
 </body>
