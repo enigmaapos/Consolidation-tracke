@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures (Perp USDT) — EMA200 Touch Scanner</title>
+  <title>Binance Futures (Perp USDT) — EMA200 Touch Scanner (All USDT Pairs)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: Inter, Roboto, Arial; background:#0f1720; color:#e6eef8; margin:16px; }
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Binance Futures (Perp USDT) — EMA200 Touch Scanner</h1>
+  <h1>Binance Futures (Perp USDT) — EMA200 Touch Scanner (All USDT Pairs)</h1>
 
   <div class="controls">
     <button id="startPoll">Start Live Polling</button>
@@ -55,7 +55,7 @@
 
   <div style="display:flex; gap:12px; align-items:flex-start;">
     <div style="flex:1; min-width:420px;">
-      <div class="muted">Filtered pairs (24h change windows). Blacklist applied.</div>
+      <div class="muted">All USDT perpetual pairs (blacklist applied).</div>
       <table id="pairsTable">
         <thead>
           <tr>
@@ -63,7 +63,6 @@
             <th>Last</th>
             <th>24h %</th>
             <th>QuoteVol</th>
-            <th>Category</th>
             <th>200EMA Touch</th>
           </tr>
         </thead>
@@ -96,12 +95,7 @@
   const INTERVAL = '15m';
   const LOOKBACK_EMA200 = 220; // >=200 for EMA200
   const EMA200_TOL_PCT = 0.05; // proximity tolerance (percent)
-  // 24h-change filter windows
-  const MIN_POS = 0.0000001; // >0
-  const MAX_POS = 15; // <=15%
-  const MIN_NEG = -15; // >= -15%
-  const MAX_NEG = -0.0000001; // <0
-  // Blacklist
+  // Blacklist (keeps your entries)
   const blacklist = [
     "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
     "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
@@ -134,6 +128,7 @@
     return res.json();
   }
 
+  // FILTER: All USDT perpetual tickers except blacklist
   function filterTickers(allTickers) {
     return allTickers
       .filter(t => t.symbol && t.symbol.endsWith('USDT') && !blacklist.includes(t.symbol))
@@ -143,24 +138,20 @@
         priceChangePercent: Number(t.priceChangePercent),
         quoteVolume: Number(t.quoteVolume)
       }))
-      .filter(t => {
-        const c = t.priceChangePercent;
-        return (c > 0 && c <= MAX_POS) || (c < 0 && c >= MIN_NEG);
-      })
-      .sort((a,b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
+      // sort by quote volume desc so high-liquidity pairs are on top (easier to scan first)
+      .sort((a,b) => (b.quoteVolume || 0) - (a.quoteVolume || 0));
   }
 
   function renderPairs(list) {
     pairsTbody.innerHTML = '';
     list.forEach(item => {
       const tr = document.createElement('tr');
-      const cls = item.priceChangePercent > 0 ? 'green' : 'red';
+      const cls = item.priceChangePercent > 0 ? 'green' : (item.priceChangePercent < 0 ? 'red' : 'small');
       tr.innerHTML = `
         <td><strong>${item.symbol}</strong></td>
         <td>${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
         <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
         <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="small">${item.priceChangePercent > 0 ? 'Bullish' : 'Bearish'}</td>
         <td class="small" id="ema200-${item.symbol}">—</td>
       `;
       pairsTbody.appendChild(tr);
@@ -263,7 +254,7 @@
       const filtered = filterTickers(raw);
       latestTickers = filtered;
       renderPairs(filtered.slice(0,500)); // cap UI table
-      setStatus(`polled ${raw.length} tickers, ${filtered.length} matched filters`);
+      setStatus(`polled ${raw.length} tickers, ${filtered.length} USDT perpetuals (blacklist removed)`);
     } catch (e) {
       setStatus('poll error: ' + e.message);
       console.error(e);
