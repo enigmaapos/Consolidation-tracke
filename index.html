@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures (Perp USDT) — EMA200 Touch Scanner (All USDT Pairs)</title>
+  <title>Binance Futures (Perp USDT) — EMA200 Touch Scanner + Trade Setup</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: Inter, Roboto, Arial; background:#0f1720; color:#e6eef8; margin:16px; }
@@ -12,18 +12,19 @@
     button.secondary { background:#334155; color:#e6eef8; }
     input, select { padding:6px 8px; border-radius:6px; border:1px solid #334155; background:#0b1220; color:#e6eef8; }
     table { width:100%; border-collapse:collapse; margin-top:8px; }
-    th, td { padding:8px 6px; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
-    th { color:#9fb3c8; font-weight:600; font-size:12px; text-transform:uppercase; }
+    th, td { padding:8px 6px; font-size:12px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
+    th { color:#9fb3c8; font-weight:600; font-size:11px; text-transform:uppercase; }
     .green { color:#5eead4; } .red { color:#fb7185; }
     .muted { color:#94a3b8; font-size:12px; }
     .status { margin-left:8px; font-size:13px; color:#94a3b8; }
-    .small { font-size:12px; color:#a7b8c8; }
+    .small { font-size:11px; color:#a7b8c8; }
     .chip { padding:4px 8px; border-radius:999px; background:#091826; border:1px solid #153241; display:flex; align-items:center; gap:6px; }
     label.chip input[type="checkbox"] { transform: translateY(1px); }
+    .num { font-family: monospace; }
   </style>
 </head>
 <body>
-  <h1>Binance Futures (Perp USDT) — EMA200 Touch Scanner (All USDT Pairs)</h1>
+  <h1>Binance Futures (Perp USDT) — EMA200 Touch Scanner + Trade Setup</h1>
 
   <div class="controls">
     <button id="startPoll">Start Live Polling</button>
@@ -59,11 +60,26 @@
       <input id="soundToggle" type="checkbox" /> Sound on detection
     </label>
 
+    <label class="chip">
+      Stop ATR×
+      <input id="stopAtrMult" type="number" step="0.1" min="0.1" value="0.8" style="width:64px; margin-left:6px;">
+    </label>
+
+    <label class="chip">
+      TP1 ATR×
+      <input id="tp1AtrMult" type="number" step="0.1" min="0.1" value="1.5" style="width:64px; margin-left:6px;">
+    </label>
+
+    <label class="chip">
+      TP2 ATR×
+      <input id="tp2AtrMult" type="number" step="0.1" min="0.1" value="3.0" style="width:64px; margin-left:6px;">
+    </label>
+
     <div class="status" id="status">idle</div>
   </div>
 
   <div style="display:flex; gap:12px; align-items:flex-start;">
-    <div style="flex:1; min-width:420px;">
+    <div style="flex:1; min-width:540px;">
       <div class="muted">All USDT perpetual pairs (blacklist applied). Table limited to first 500 for UI responsiveness.</div>
       <table id="pairsTable">
         <thead>
@@ -79,20 +95,30 @@
       </table>
     </div>
 
-    <div style="width:420px;">
-      <div class="muted">Top EMA200 candidates</div>
+    <div style="width:760px;">
+      <div class="muted">Top EMA200 candidates + trade setups</div>
       <table id="topTable">
         <thead>
-          <tr><th>Symbol</th><th>EMA200-touch</th><th>Close Δ%</th></tr>
+          <tr>
+            <th>Symbol</th>
+            <th>Touch</th>
+            <th>Dir</th>
+            <th class="small">Entry</th>
+            <th class="small">Stop</th>
+            <th class="small">TP1</th>
+            <th class="small">TP2</th>
+            <th class="small">R:R1</th>
+            <th class="small">R:R2</th>
+          </tr>
         </thead>
         <tbody></tbody>
       </table>
-      <div class="muted" style="margin-top:8px; font-size:13px;">
-        Tips:
-        <ul style="margin:6px 0 0 18px; padding:0; font-size:12px;">
-          <li>EMA200 detection fetches ~220 candles per symbol — keep Max symbols small if you enable Auto-analyze.</li>
-          <li>Tune Batch size and Batch delay to match your network / avoid rate-limit errors.</li>
-          <li>Click Start or Analyze once to unlock audio (required by browsers).</li>
+      <div class="muted" style="margin-top:8px; font-size:12px;">
+        Notes:
+        <ul style="margin:6px 0 0 18px; padding:0;">
+          <li>Stop and TP are ATR-based (14 × 15m ATR). ATR multiplier controls are above.</li>
+          <li>Entry displayed is the latest close. Use retest/conservative entry if you prefer — treat these as suggested levels, not orders.</li>
+          <li>Adjust multipliers to tune risk profile. Consider lower maxAnalyze when Auto-analyze is ON.</li>
         </ul>
       </div>
     </div>
@@ -127,6 +153,9 @@
   const topTbody = document.querySelector('#topTable tbody');
   const soundToggle = document.getElementById('soundToggle');
   const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
+  const stopAtrMultInput = document.getElementById('stopAtrMult');
+  const tp1AtrMultInput = document.getElementById('tp1AtrMult');
+  const tp2AtrMultInput = document.getElementById('tp2AtrMult');
 
   let pollTimer = null;
   let latestTickers = [];
@@ -161,7 +190,7 @@
       const cls = item.priceChangePercent > 0 ? 'green' : (item.priceChangePercent < 0 ? 'red' : 'small');
       tr.innerHTML = `
         <td><strong>${item.symbol}</strong></td>
-        <td>${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
+        <td class="num">${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
         <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
         <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
         <td class="small" id="ema200-${item.symbol}">—</td>
@@ -174,12 +203,19 @@
     topTbody.innerHTML = '';
     results.forEach(r => {
       const tr = document.createElement('tr');
-      const touchCls = r.strictTouch ? 'green' : (r.closeNear ? '' : 'small');
       const touchText = r.strictTouch ? 'wick-cross' : (r.closeNear ? `close~${r.closePct.toFixed(3)}%` : 'no');
+      const touchCls = r.strictTouch ? 'green' : (r.closeNear ? '' : 'small');
+      const dirCls = r.direction === 'LONG' ? 'green' : (r.direction === 'SHORT' ? 'red' : 'small');
       tr.innerHTML = `
         <td><strong>${r.symbol}</strong></td>
         <td class="${touchCls}">${touchText}</td>
-        <td>${r.closePct.toFixed(3)}%</td>
+        <td class="${dirCls}">${r.direction}</td>
+        <td class="num">${r.entry.toFixed(r.prec)}</td>
+        <td class="num">${r.stop.toFixed(r.prec)}</td>
+        <td class="num">${r.tp1.toFixed(r.prec)}</td>
+        <td class="num">${r.tp2.toFixed(r.prec)}</td>
+        <td class="num">${r.rr1.toFixed(2)}</td>
+        <td class="num">${r.rr2.toFixed(2)}</td>
       `;
       topTbody.appendChild(tr);
     });
@@ -201,6 +237,22 @@
     return out;
   }
 
+  // ATR computation
+  function computeATR(klines, period = 14) {
+    if (!klines || klines.length < period + 1) return null;
+    const trs = [];
+    for (let i = 1; i < klines.length; i++) {
+      const hi = klines[i].h;
+      const lo = klines[i].l;
+      const prevC = klines[i-1].c;
+      const tr = Math.max(hi - lo, Math.abs(hi - prevC), Math.abs(lo - prevC));
+      trs.push(tr);
+    }
+    const slice = trs.slice(-period);
+    const atr = slice.reduce((a,b)=>a+b,0)/slice.length;
+    return atr;
+  }
+
   function checkEMA200Touch(klines) {
     if (!klines || klines.length < 200) return { ok: false };
     const closes = klines.map(k=>k.c);
@@ -218,7 +270,7 @@
     const closePct = Math.abs(lastC - ema200Latest) / ema200Latest * 100;
     const closeNear = closePct <= EMA200_TOL_PCT;
 
-    return { ok:true, ema200: ema200Latest, strictTouch, closeNear, closePct };
+    return { ok:true, ema200: ema200Latest, strictTouch, closeNear, closePct, lastClose:lastC, lastLow:lastL, lastHigh:lastH, closes, highs, lows };
   }
 
   async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200) {
@@ -244,7 +296,7 @@
         try {
           const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
           const emaChk = checkEMA200Touch(kl);
-          return { sym, emaChk };
+          return { sym, emaChk, kl };
         } catch (e) {
           return { sym, error: e.message || String(e) };
         }
@@ -297,7 +349,75 @@
     setTimeout(()=>playBeep(1568, 60, 0.06), 220);
   }
 
-  // Central handler for EMA results & sounds
+  // Trade setup builder using ATR
+  function buildTradeSetup(sym, emaChk, klines) {
+    // returns null if emaChk not ok
+    if (!emaChk || !emaChk.ok) return null;
+    const atr = computeATR(klines.slice(-40), 14) || computeATR(klines, 14) || 0;
+    const stopAtrMult = Math.max(0.1, Number(stopAtrMultInput.value) || 0.8);
+    const tp1AtrMult = Math.max(0.1, Number(tp1AtrMultInput.value) || 1.5);
+    const tp2AtrMult = Math.max(0.1, Number(tp2AtrMultInput.value) || 3.0);
+
+    const lastClose = emaChk.lastClose;
+    const lastLow = emaChk.lastLow;
+    const lastHigh = emaChk.lastHigh;
+    const ema200 = emaChk.ema200;
+
+    // determine precision (decimal places) from price
+    let prec = 4;
+    if (lastClose >= 100) prec = 2;
+    else if (lastClose >= 10) prec = 3;
+    else if (lastClose < 1) prec = 6;
+
+    let direction = lastClose >= ema200 ? 'LONG' : 'SHORT';
+
+    // conservative entry = lastClose
+    const entry = lastClose;
+
+    // stop calculation:
+    // For LONG: stop = min(lastLow - ATR*stopAtrMult, ema200 - ATR * 0.25)
+    // For SHORT: stop = max(lastHigh + ATR*stopAtrMult, ema200 + ATR * 0.25)
+    let stop;
+    if (direction === 'LONG') {
+      stop = Math.min(lastLow - atr * stopAtrMult, ema200 - atr * 0.25);
+      // ensure stop is below entry
+      if (stop >= entry) stop = entry - Math.max(atr * 0.2, (entry * 0.0005));
+    } else {
+      stop = Math.max(lastHigh + atr * stopAtrMult, ema200 + atr * 0.25);
+      if (stop <= entry) stop = entry + Math.max(atr * 0.2, (entry * 0.0005));
+    }
+
+    // TP's
+    let tp1, tp2;
+    if (direction === 'LONG') {
+      tp1 = entry + atr * tp1AtrMult;
+      tp2 = entry + atr * tp2AtrMult;
+    } else {
+      tp1 = entry - atr * tp1AtrMult;
+      tp2 = entry - atr * tp2AtrMult;
+    }
+
+    // Risk and rewards
+    const risk = Math.abs(entry - stop);
+    const rr1 = risk > 0 ? Math.abs(tp1 - entry) / risk : 0;
+    const rr2 = risk > 0 ? Math.abs(tp2 - entry) / risk : 0;
+
+    // sanity checks: ensure tp/stop non-zero
+    return {
+      symbol: sym,
+      direction,
+      entry,
+      stop,
+      tp1,
+      tp2,
+      rr1,
+      rr2,
+      atr,
+      prec: prec
+    };
+  }
+
+  // Central handler for EMA results & sounds + build setups
   async function handleEMAResultsAndPlaySound(results) {
     const touched = [];
     results.forEach(r => {
@@ -314,12 +434,17 @@
       }
 
       if (r.emaChk && r.emaChk.ok && (r.emaChk.strictTouch || r.emaChk.closeNear)) {
-        touched.push({
-          symbol: r.sym,
-          strictTouch: r.emaChk.strictTouch,
-          closeNear: r.emaChk.closeNear,
-          closePct: r.emaChk.closePct
-        });
+        // build trade setup using the same klines used for ema
+        const setup = buildTradeSetup(r.sym, r.emaChk, r.kl || r.klines || []);
+        if (setup) {
+          touched.push({
+            symbol: r.sym,
+            strictTouch: r.emaChk.strictTouch,
+            closeNear: r.emaChk.closeNear,
+            closePct: r.emaChk.closePct,
+            ...setup
+          });
+        }
       }
     });
 
@@ -339,14 +464,15 @@
       });
     }
 
-    // sort results for display: strict touch first, then nearest closePct
+    // sort: strict touch first, then best rr1 then closePct
     touched.sort((a,b) => {
       if ((a.strictTouch?1:0) !== (b.strictTouch?1:0)) return (b.strictTouch?1:0) - (a.strictTouch?1:0);
+      if (b.rr1 !== a.rr1) return b.rr1 - a.rr1;
       return a.closePct - b.closePct;
     });
 
     renderTop(touched.slice(0,50));
-    setStatus(`EMA200 analysis finished. ${touched.length} symbols touched or near EMA200`);
+    setStatus(`EMA200 analysis finished. ${touched.length} symbols with setups`);
   }
 
   // Poll tickers once and update UI (auto-analyze integration)
@@ -413,7 +539,7 @@
 
     const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
 
-    // Use central handler that also plays sound
+    // Use central handler that also builds setups and plays sound
     await handleEMAResultsAndPlaySound(results);
   };
 
