@@ -121,21 +121,35 @@
     return res.json();
   }
 
-  // Apply 24h change filters and keep USDT perpetuals only
-  function filterTickers(allTickers) {
-    return allTickers.filter(t => t.symbol && t.symbol.endsWith('USDT'))
-      .map(t => ({
-        symbol: t.symbol,
-        lastPrice: Number(t.lastPrice),
-        priceChangePercent: Number(t.priceChangePercent),
-        quoteVolume: Number(t.quoteVolume)
-      }))
-      .filter(t => {
-        const c = t.priceChangePercent;
-        return (c > 0 && c <= 15) || (c < 0 && c >= -15);
-      })
-      .sort((a,b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent)); // sort by magnitude
-  }
+// Your blacklist
+const blacklist = [
+  "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
+  "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
+  "STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT",
+  "BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT",
+  "STRAXUSDT","COMBOUSDT","AI16ZUSDT"
+];
+
+// Apply 24h change filters + USDT perp only + blacklist filter
+function filterTickers(allTickers) {
+  return allTickers
+    .filter(t =>
+      t.symbol &&
+      t.symbol.endsWith('USDT') &&
+      !blacklist.includes(t.symbol) // ✨ blacklist filter added
+    )
+    .map(t => ({
+      symbol: t.symbol,
+      lastPrice: Number(t.lastPrice),
+      priceChangePercent: Number(t.priceChangePercent),
+      quoteVolume: Number(t.quoteVolume)
+    }))
+    .filter(t => {
+      const c = t.priceChangePercent;
+      return (c > 0 && c <= 15) || (c < 0 && c >= -15);
+    })
+    .sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
+}
 
   // Render table
   function renderPairs(list) {
