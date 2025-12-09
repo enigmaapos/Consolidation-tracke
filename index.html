@@ -18,7 +18,8 @@
     .muted { color:#94a3b8; font-size:12px; }
     .status { margin-left:8px; font-size:13px; color:#94a3b8; }
     .small { font-size:12px; color:#a7b8c8; }
-    .chip { padding:4px 8px; border-radius:999px; background:#091826; border:1px solid #153241; }
+    .chip { padding:4px 8px; border-radius:999px; background:#091826; border:1px solid #153241; display:flex; align-items:center; gap:6px; }
+    label.chip input[type="checkbox"] { transform: translateY(1px); }
   </style>
 </head>
 <body>
@@ -50,12 +51,20 @@
 
     <button id="analyze" class="secondary">Analyze EMA200 Touch</button>
 
+    <label class="chip">
+      <input id="autoAnalyzeToggle" type="checkbox" /> Auto-analyze on poll
+    </label>
+
+    <label class="chip">
+      <input id="soundToggle" type="checkbox" /> Sound on detection
+    </label>
+
     <div class="status" id="status">idle</div>
   </div>
 
   <div style="display:flex; gap:12px; align-items:flex-start;">
     <div style="flex:1; min-width:420px;">
-      <div class="muted">All USDT perpetual pairs (blacklist applied).</div>
+      <div class="muted">All USDT perpetual pairs (blacklist applied). Table limited to first 500 for UI responsiveness.</div>
       <table id="pairsTable">
         <thead>
           <tr>
@@ -81,8 +90,9 @@
       <div class="muted" style="margin-top:8px; font-size:13px;">
         Tips:
         <ul style="margin:6px 0 0 18px; padding:0; font-size:12px;">
-          <li>EMA200 detection fetches ~220 candles per symbol — keep maxAnalyze small to reduce requests.</li>
-          <li>Tune batch size and delay if you see network or rate-limit errors.</li>
+          <li>EMA200 detection fetches ~220 candles per symbol — keep Max symbols small if you enable Auto-analyze.</li>
+          <li>Tune Batch size and Batch delay to match your network / avoid rate-limit errors.</li>
+          <li>Click Start or Analyze once to unlock audio (required by browsers).</li>
         </ul>
       </div>
     </div>
@@ -115,6 +125,8 @@
   const statusEl = document.getElementById('status');
   const pairsTbody = document.querySelector('#pairsTable tbody');
   const topTbody = document.querySelector('#topTable tbody');
+  const soundToggle = document.getElementById('soundToggle');
+  const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
 
   let pollTimer = null;
   let latestTickers = [];
@@ -247,52 +259,46 @@
     return results;
   }
 
-  // Poll tickers once and update UI
-  async function pollTickersOnce() {
-    try {
-      const raw = await safeFetch(TICKER_24H);
-      const filtered = filterTickers(raw);
-      latestTickers = filtered;
-      renderPairs(filtered.slice(0,500)); // cap UI table
-      setStatus(`polled ${raw.length} tickers, ${filtered.length} USDT perpetuals (blacklist removed)`);
-    } catch (e) {
-      setStatus('poll error: ' + e.message);
-      console.error(e);
+  // --- Audio helpers (Web Audio API) ---
+  let audioCtx = null;
+  let audioUnlocked = false;
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => { audioUnlocked = true; }).catch(()=>{ audioUnlocked = false; });
+    } else {
+      audioUnlocked = true;
     }
   }
+  function playBeep(freq=880, duration=120, volume=0.12, type='sine') {
+    if (!audioCtx) try { ensureAudioContext(); } catch(e){ return; }
+    if (!audioUnlocked) return;
+    try {
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, now);
+      g.gain.setValueAtTime(volume, now);
+      g.gain.linearRampToValueAtTime(volume, now + 0.01);
+      g.gain.linearRampToValueAtTime(0.0001, now + duration/1000);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(now);
+      o.stop(now + duration/1000 + 0.02);
+    } catch (e) { /* silent fail */ }
+  }
+  function playNotification() {
+    if (!soundToggle.checked) return;
+    playBeep(1046, 80, 0.08);
+    setTimeout(()=>playBeep(1318, 70, 0.07), 120);
+    setTimeout(()=>playBeep(1568, 60, 0.06), 220);
+  }
 
-  // Events
-  startBtn.onclick = () => {
-    const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
-    if (pollTimer) clearInterval(pollTimer);
-    pollTickersOnce();
-    pollTimer = setInterval(pollTickersOnce, interval * 1000);
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    setStatus('polling started');
-  };
-
-  stopBtn.onclick = () => {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    setStatus('polling stopped');
-  };
-
-  analyzeBtn.onclick = async () => {
-    if (!latestTickers || latestTickers.length === 0) {
-      setStatus('no symbols to analyze - run poll first');
-      return;
-    }
-    const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
-    const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
-    const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
-
-    const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-    setStatus(`starting EMA200 analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`);
-
-    const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
-
+  // Central handler for EMA results & sounds
+  async function handleEMAResultsAndPlaySound(results) {
     const touched = [];
     results.forEach(r => {
       const idE = 'ema200-' + r.sym;
@@ -317,7 +323,23 @@
       }
     });
 
-    // sort: strict touch first, then nearest closePct
+    // play per-symbol beep (only if sound enabled)
+    if (soundToggle.checked && touched.length > 0) {
+      playNotification();
+      let delay = 360;
+      touched.slice(0, 10).forEach(t => { // limit to 10 beeps
+        setTimeout(() => {
+          if (t.strictTouch) {
+            playBeep(900, 120, 0.11);
+          } else {
+            playBeep(1400, 80, 0.08);
+          }
+        }, delay);
+        delay += 140;
+      });
+    }
+
+    // sort results for display: strict touch first, then nearest closePct
     touched.sort((a,b) => {
       if ((a.strictTouch?1:0) !== (b.strictTouch?1:0)) return (b.strictTouch?1:0) - (a.strictTouch?1:0);
       return a.closePct - b.closePct;
@@ -325,13 +347,80 @@
 
     renderTop(touched.slice(0,50));
     setStatus(`EMA200 analysis finished. ${touched.length} symbols touched or near EMA200`);
+  }
+
+  // Poll tickers once and update UI (auto-analyze integration)
+  async function pollTickersOnce() {
+    try {
+      const raw = await safeFetch(TICKER_24H);
+      const filtered = filterTickers(raw);
+      latestTickers = filtered;
+      renderPairs(filtered.slice(0,500)); // cap UI table
+      setStatus(`polled ${raw.length} tickers, ${filtered.length} USDT perpetuals (blacklist removed)`);
+
+      // Auto-run EMA200 analysis if enabled
+      if (autoAnalyzeToggle.checked) {
+        // unlock audio if user already clicked start
+        ensureAudioContext();
+        const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
+        const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
+        const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
+        const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
+        setStatus(`(auto) starting EMA200 analysis for ${toAnalyze.length} symbols...`);
+        const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
+        await handleEMAResultsAndPlaySound(results);
+      }
+    } catch (e) {
+      setStatus('poll error: ' + e.message);
+      console.error(e);
+    }
+  }
+
+  // Events
+  startBtn.onclick = () => {
+    const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
+    if (pollTimer) clearInterval(pollTimer);
+    // unlock audio on user gesture
+    ensureAudioContext();
+    pollTickersOnce();
+    pollTimer = setInterval(pollTickersOnce, interval * 1000);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    setStatus('polling started');
+  };
+
+  stopBtn.onclick = () => {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus('polling stopped');
+  };
+
+  analyzeBtn.onclick = async () => {
+    if (!latestTickers || latestTickers.length === 0) {
+      setStatus('no symbols to analyze - run poll first');
+      return;
+    }
+    // unlock audio on user gesture
+    ensureAudioContext();
+
+    const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
+    const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
+    const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
+
+    const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
+    setStatus(`starting EMA200 analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`);
+
+    const results = await batchAnalyzeEMA200(toAnalyze, batchSize, batchDelay);
+
+    // Use central handler that also plays sound
+    await handleEMAResultsAndPlaySound(results);
   };
 
   setStatus('idle — click "Start Live Polling"');
 
-  // optional auto-start
+  // optional auto-start (commented)
   // startBtn.click();
-
   </script>
 </body>
 </html>
