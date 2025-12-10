@@ -335,47 +335,66 @@
     return atr;
   }
 
-  // Detect recent EMA70/EMA200 cross within crossWindow candles (explicit prev/cur comparison)
+// Improved cross detection: uses explicit diff sign change with epsilon and debug output
 function checkEMACross(klines, crossWindow = 3) {
   if (!klines || klines.length < 210) return { ok:false };
 
-  // build closes and EMAs
   const closes = klines.map(k => k.c);
   const ema70 = emaSeries(closes, 70);
   const ema200 = emaSeries(closes, 200);
   if (!ema70 || !ema200) return { ok:false };
 
   const n = ema70.length;
-  // We'll inspect pairs of consecutive candles in the last (crossWindow+1) candles:
-  // for j from (n - (crossWindow + 1) + 1) .. n-1, compare (ema70[j-1], ema200[j-1]) -> (ema70[j], ema200[j])
-  const start = Math.max(1, n - (crossWindow + 1) + 1); // ensure j-1 is valid
+  // prepare diff array aligned with ema arrays (nulls possible at start)
+  const diff = new Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    const a = ema70[i], b = ema200[i];
+    diff[i] = (a == null || b == null) ? null : (a - b);
+  }
+
+  // We'll inspect pairs of consecutive candles in the last (crossWindow+1) candles
+  const startIdx = Math.max(1, n - (crossWindow + 1) + 1); // ensures prev index exists
   let crossType = null;
   let crossIndexFromEnd = null;
   let crossAbsIndex = null;
 
-  for (let j = start; j < n; j++) {
+  // epsilon to avoid tiny float jitter marking as cross
+  const EPS = 1e-8;
+
+  for (let j = startIdx; j < n; j++) {
     const prevIdx = j - 1;
     const curIdx = j;
+    const prevDiff = diff[prevIdx];
+    const curDiff = diff[curIdx];
 
-    const prev70 = ema70[prevIdx];
-    const prev200 = ema200[prevIdx];
-    const cur70 = ema70[curIdx];
-    const cur200 = ema200[curIdx];
+    if (prevDiff === null || curDiff === null) continue;
 
-    if (prev70 == null || prev200 == null || cur70 == null || cur200 == null) continue;
-
-    // BULL: short-term crosses above long-term
-    if (prev70 < prev200 && cur70 > cur200) {
+    // prevDiff negative (below) and curDiff positive (above)  => BULL
+    if (prevDiff <= -EPS && curDiff >= EPS) {
       crossType = 'BULL';
-      // crossIndexFromEnd: how many candles ago (0 = latest candle)
       crossIndexFromEnd = (n - 1) - curIdx;
       crossAbsIndex = curIdx;
       break;
     }
 
-    // BEAR: short-term crosses below long-term
-    if (prev70 > prev200 && cur70 < cur200) {
+    // prevDiff positive (above) and curDiff negative (below) => BEAR
+    if (prevDiff >= EPS && curDiff <= -EPS) {
       crossType = 'BEAR';
+      crossIndexFromEnd = (n - 1) - curIdx;
+      crossAbsIndex = curIdx;
+      break;
+    }
+
+    // If values are very close to zero (within EPS), also handle equality transitions:
+    // prev ~= 0 and cur < 0 -> BEAR ; prev ~= 0 and cur > 0 -> BULL
+    if (Math.abs(prevDiff) < EPS && curDiff <= -EPS) {
+      crossType = 'BEAR';
+      crossIndexFromEnd = (n - 1) - curIdx;
+      crossAbsIndex = curIdx;
+      break;
+    }
+    if (Math.abs(prevDiff) < EPS && curDiff >= EPS) {
+      crossType = 'BULL';
       crossIndexFromEnd = (n - 1) - curIdx;
       crossAbsIndex = curIdx;
       break;
@@ -389,8 +408,29 @@ function checkEMACross(klines, crossWindow = 3) {
 
   let crossTimestamp = null;
   if (crossAbsIndex != null && klines[crossAbsIndex] && klines[crossAbsIndex].t) {
-    crossTimestamp = klines[crossAbsIndex].t; // ms since epoch from Binance klines
+    crossTimestamp = klines[crossAbsIndex].t;
   }
+
+  // DEBUG: print last few EMA values and diffs for troubleshooting (remove in production)
+  try {
+    const debugCount = 6;
+    const startDebug = Math.max(0, n - debugCount);
+    const debugRows = [];
+    for (let i = startDebug; i < n; i++) {
+      debugRows.push({
+        i,
+        t: klines[i] ? new Date(klines[i].t).toISOString() : null,
+        ema70: ema70[i] == null ? null : Number(ema70[i].toFixed(8)),
+        ema200: ema200[i] == null ? null : Number(ema200[i].toFixed(8)),
+        diff: diff[i] == null ? null : Number(diff[i].toFixed(8))
+      });
+    }
+    if (crossAbsIndex != null) {
+      console.debug(`[checkEMACross] cross=${crossType} at idx=${crossAbsIndex} time=${crossTimestamp ? new Date(crossTimestamp).toISOString() : 'n/a'}`, debugRows);
+    } else {
+      console.debug('[checkEMACross] no cross in window — recent EMA rows:', debugRows);
+    }
+  } catch(e){ /* ignore debug errors */ }
 
   return {
     ok: true,
