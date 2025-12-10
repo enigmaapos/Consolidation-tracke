@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures (Perp USDT) — EMA70/EMA200 Cross Scanner + Trade Setup</title>
+  <title>Binance Futures — EMA70/EMA200 Cross Scanner (Improved UI)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root{
@@ -10,7 +10,7 @@
       --card:#0b1220;
       --muted:#94a3b8;
       --accent:#0ea5a4;
-      --accent-dark:#042024;
+      --accent-2:#06b6d4;
       --glass-border: rgba(255,255,255,0.04);
       --green:#5eead4;
       --red:#fb7185;
@@ -19,58 +19,48 @@
       --shadow: 0 6px 18px rgba(2,6,23,0.6);
       --max-card-height: 60vh;
     }
-
-    /* Reset-ish */
     html,body{height:100%;margin:0;font-family:Inter, Roboto, Arial, system-ui,-apple-system; background:var(--bg); color:#e6eef8; -webkit-font-smoothing:antialiased;}
-    h1{margin:0 0 8px 0;font-size:18px;font-weight:600}
+    h1{margin:0 0 6px 0;font-size:18px;font-weight:600}
     .muted{color:var(--muted); font-size:13px}
-
-    /* Page container */
     .wrap{padding:16px; max-width:1400px; margin:0 auto; box-sizing:border-box;}
-
-    /* Controls */
-    .controls{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      margin-bottom:12px;
-      flex-wrap:wrap;
-    }
-    .controls .left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .controls .right { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-
-    button{ padding:10px 14px; border:0; background:var(--accent); color:var(--accent-dark); border-radius:10px; cursor:pointer; font-weight:600; }
+    .topbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+    .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;}
+    .left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .right { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    button{ padding:10px 14px; border:0; background:var(--accent); color:var(--bg); border-radius:10px; cursor:pointer; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
     button.secondary{ background:#334155; color:var(--muted); }
+    button.warn{ background:#ef4444; color:white; }
     input, select{ padding:8px 10px; border-radius:8px; border:1px solid #334155; background:var(--card); color:inherit; min-height:36px; box-sizing:border-box; }
-
-    .chip{ padding:6px 10px; border-radius:999px; background:rgba(9,24,38,0.6); border:1px solid rgba(21,50,65,0.6); display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
-
-    /* Cards grid */
+    .chip{ padding:6px 10px; border-radius:999px; background:rgba(9,24,38,0.45); border:1px solid rgba(21,50,65,0.6); display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
     .grid{ display:grid; grid-template-columns: 1fr 760px; gap:12px; align-items:start; }
     @media (max-width:1100px){ .grid{ grid-template-columns: 1fr 420px; } }
     @media (max-width:900px){ .grid{ grid-template-columns: 1fr; } }
-
-    /* Card styles */
     .card{ background:var(--card); border-radius:var(--radius); padding:12px; box-shadow:var(--shadow); border:1px solid var(--glass-border); box-sizing:border-box; }
     .card h2{ margin:0 0 8px 0; font-size:14px; color:var(--muted); font-weight:600 }
-    .card .card-body{ display:block; }
-
-    /* Tables */
     table{ width:100%; border-collapse:collapse; font-size:13px; }
-    th, td{ padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; vertical-align:middle; }
-    th{ color:#9fb3c8; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; }
+    th, td{ padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:left; vertical-align:middle; }
+    th{ color:#9fb3c8; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; position:sticky; top:0; background:linear-gradient(180deg, rgba(11,18,32,0.75), rgba(11,18,32,0.85)); z-index:2;}
+    tbody tr:hover{ background:rgba(255,255,255,0.02); }
+    tbody tr:nth-child(odd) td{ background: transparent; }
     .green{ color:var(--green); }
     .red{ color:var(--red); }
     .small{ color:var(--muted); font-size:12px; }
-
-    /* Scrollable table containers */
-    .table-wrap{ max-height:var(--max-card-height); overflow:auto; padding-right:6px; -webkit-overflow-scrolling:touch; }
-    .table-wrap table th:first-child, .table-wrap table td:first-child { min-width:110px; }
-
-    /* Top table wider card style */
+    .num{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+    .table-wrap{ max-height:var(--max-card-height); overflow:auto; padding-top:6px; -webkit-overflow-scrolling:touch; }
     .wide { max-width:100%; }
-
-    /* Buttons & inputs responsive */
+    .status{ margin-left:8px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+    .status .dot{ width:10px; height:10px; border-radius:50%; background:transparent; display:inline-block; }
+    .status .dot.running{ background:var(--green); box-shadow:0 0 8px rgba(94,234,212,0.12); }
+    .status .dot.idle{ background:#334155; }
+    .controls .spacer{ flex:1; }
+    .legend{ display:flex; gap:8px; align-items:center; margin-top:8px; color:var(--muted); font-size:12px; flex-wrap:wrap; }
+    .badge{ padding:4px 8px; border-radius:999px; background:rgba(255,255,255,0.03); color:var(--muted); font-size:12px; }
+    .link{ color:var(--accent-2); text-decoration:none; font-weight:600; }
+    .input-inline{ display:inline-flex; align-items:center; gap:6px; }
+    .spinner{ width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.06);border-top-color:var(--accent);animation:spin .9s linear infinite; display:inline-block; }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .help{ font-size:12px;color:var(--muted); margin-top:8px; }
+    /* responsive small */
     @media (max-width:600px){
       button{ flex:1 1 auto; min-width:0; }
       .controls{ gap:6px; }
@@ -79,106 +69,117 @@
       th, td{ padding:8px 6px; font-size:12px; }
       h1{ font-size:16px; }
     }
-
-    /* Minor helpers */
-    .status{ margin-left:8px; font-size:13px; color:var(--muted); }
-    .num{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
-    .legend{ display:flex; gap:8px; align-items:center; margin-top:8px; color:var(--muted); font-size:12px; }
-    .chip .checkbox{ transform:translateY(1px); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Binance Futures (Perp USDT) — EMA70/EMA200 Cross Scanner + Trade Setup</h1>
+    <h1>Binance Futures — EMA70/EMA200 Cross Scanner</h1>
 
-    <div class="controls">
-      <div class="left">
-        <button id="startPoll">Start Live Polling</button>
-        <button id="stopPoll" class="secondary" disabled>Stop Polling</button>
+    <div class="topbar">
+      <div class="controls">
+        <div class="left">
+          <button id="startPoll" title="Start polling tickers">Start</button>
+          <button id="pausePoll" class="secondary" disabled title="Pause polling (keeps last results)">Pause</button>
+          <button id="refreshOnce" class="secondary" title="Fetch tickers once">Refresh</button>
 
-        <label class="chip" title="Poll interval in seconds">
-          Poll interval (s):
-          <input id="pollInterval" type="number" min="5" value="10" style="width:72px; margin-left:6px;">
-        </label>
+          <label class="chip input-inline" title="How often to poll (seconds)">
+            Poll (s):
+            <input id="pollInterval" type="number" min="5" value="10" style="width:76px;">
+          </label>
 
-        <label class="chip">
-          Max symbols:
-          <input id="maxAnalyze" type="number" min="1" value="20" style="width:72px; margin-left:6px;">
-        </label>
+          <label class="chip input-inline" title="Max symbols considered for EMA analysis">
+            Max symbols:
+            <input id="maxAnalyze" type="number" min="1" value="20" style="width:76px;">
+          </label>
 
-        <label class="chip">
-          Batch size:
-          <input id="batchSize" type="number" min="1" value="5" style="width:60px; margin-left:6px;">
-        </label>
+          <label class="chip input-inline" title="Analyze batch size">
+            Batch:
+            <input id="batchSize" type="number" min="1" value="5" style="width:64px;">
+          </label>
 
-        <label class="chip">
-          Batch delay (ms):
-          <input id="batchDelay" type="number" min="300" value="1200" style="width:80px; margin-left:6px;">
-        </label>
+          <label class="chip input-inline" title="Delay (ms) between each batch to avoid rate limits">
+            Delay (ms):
+            <input id="batchDelay" type="number" min="300" value="1200" style="width:80px;">
+          </label>
 
-        <button id="analyze" class="secondary">Analyze EMA Crosses</button>
-      </div>
+          <button id="analyze" class="secondary" title="Run EMA cross analysis now">Analyze</button>
+        </div>
 
-      <div class="right">
-        <label class="chip">
-          <input id="autoAnalyzeToggle" type="checkbox" class="checkbox" /> Auto-analyze
-        </label>
+        <div class="right" style="align-items:center;">
+          <label class="chip" title="Automatically run EMA analysis after polling">
+            <input id="autoAnalyzeToggle" type="checkbox" /> Auto
+          </label>
 
-        <label class="chip">
-          <input id="soundToggle" type="checkbox" class="checkbox" /> Sound
-        </label>
+          <label class="chip" title="Enable sound alerts">
+            <input id="soundToggle" type="checkbox" /> Sound
+          </label>
 
-        <label class="chip">Stop ATR×
-          <input id="stopAtrMult" type="number" step="0.1" min="0.1" value="0.8" style="width:64px; margin-left:6px;">
-        </label>
-
-        <label class="chip">TP1 ATR×
-          <input id="tp1AtrMult" type="number" step="0.1" min="0.1" value="1.5" style="width:64px; margin-left:6px;">
-        </label>
-
-        <label class="chip">TP2 ATR×
-          <input id="tp2AtrMult" type="number" step="0.1" min="0.1" value="3.0" style="width:64px; margin-left:6px;">
-        </label>
-
-        <label class="chip">Cross window:
-          <input id="crossWindow" type="number" min="1" value="3" style="width:56px; margin-left:6px;" />
-        </label>
-
-        <div class="status" id="status">idle</div>
+          <div class="status" id="status" aria-live="polite">
+            <span class="dot idle" id="statusDot"></span>
+            <span id="statusText">idle — not polling</span>
+            <span class="muted" id="lastUpdated" style="margin-left:8px;"></span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- grid with cards -->
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;">
+      <div style="flex:1;">
+        <input id="searchBox" placeholder="Search symbol (e.g. BTCUSDT) or filter by text..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #334155; background:var(--card); color:inherit;">
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="crossFilter" style="min-width:120px; padding:8px; border-radius:8px; background:var(--card); color:inherit;">
+          <option value="ALL">All crosses & symbols</option>
+          <option value="BULL">Bull crosses only</option>
+          <option value="BEAR">Bear crosses only</option>
+          <option value="NO_CROSS">No cross</option>
+        </select>
+
+        <select id="sortBy" style="min-width:160px; padding:8px; border-radius:8px; background:var(--card); color:inherit;">
+          <option value="volume_desc">Sort: QuoteVol (desc)</option>
+          <option value="volume_asc">Sort: QuoteVol (asc)</option>
+          <option value="change_desc">Sort: 24h % (desc)</option>
+          <option value="change_asc">Sort: 24h % (asc)</option>
+          <option value="symbol_asc">Sort: Symbol (A → Z)</option>
+        </select>
+      </div>
+    </div>
+
     <div class="grid" id="grid">
-      <!-- Left column: Pairs table card -->
+      <!-- Left: all pairs -->
       <div class="card">
-        <h2>All USDT perpetual pairs</h2>
-        <div class="muted" style="margin-bottom:8px;">(Blacklist applied). Table limited to first 500 for UI responsiveness.</div>
-        <div class="table-wrap card-body" style="padding-top:6px;">
+        <h2>All USDT perpetual pairs <span class="muted" style="font-weight:500"> (first 500 shown)</span></h2>
+        <div class="muted">Use search / filter / sort to find symbols quickly.</div>
+
+        <div class="table-wrap card-body">
           <table id="pairsTable" role="table" aria-label="Filtered pairs">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Last</th>
-                <th>24h %</th>
-                <th>QuoteVol</th>
-                <th>EMA Cross</th>
+                <th data-col="symbol">Symbol</th>
+                <th data-col="last">Last</th>
+                <th data-col="change">24h %</th>
+                <th data-col="vol">QuoteVol</th>
+                <th data-col="cross">EMA Cross</th>
+                <th data-col="actions">Actions</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
-        <div class="legend">
-          <div class="chip"><span class="green">●</span> Bull cross</div>
-          <div class="chip"><span class="red">●</span> Bear cross</div>
-          <div class="chip">Table scrolls if long</div>
+
+        <div class="legend" style="margin-top:8px;">
+          <div class="badge"><span class="green">●</span> Bull cross</div>
+          <div class="badge"><span class="red">●</span> Bear cross</div>
+          <div class="badge">Click a symbol's chart link to open Binance</div>
         </div>
       </div>
 
-      <!-- Right column: Top candidates card -->
+      <!-- Right: top candidates -->
       <div class="card wide">
         <h2>Top EMA cross candidates + trade setups</h2>
-        <div class="muted" style="margin-bottom:8px;">Setups are ATR-based (14 × 15m ATR). Entry uses last close.</div>
+        <div class="muted">Setups are ATR-based (14 × 15m ATR). Entry uses last close.</div>
+
         <div class="table-wrap card-body" style="padding-top:6px;">
           <table id="topTable" role="table" aria-label="Top EMA candidates">
             <thead>
@@ -197,11 +198,13 @@
             <tbody></tbody>
           </table>
         </div>
-        <div style="margin-top:8px; color:var(--muted); font-size:13px;">
+
+        <div class="help">
           Tips:
           <ul style="margin:6px 0 0 18px; padding:0;">
-            <li>Click Start or Analyze once to unlock audio (required by browsers).</li>
-            <li>Enable Auto-analyze carefully — it fetches many klines (keep Max symbols low).</li>
+            <li>Click <strong>Start</strong> once to unlock audio on some browsers.</li>
+            <li>Auto-analyze will analyze top <em>Max symbols</em> after each poll.</li>
+            <li>Use <strong>Refresh</strong> for a single poll without enabling polling interval.</li>
           </ul>
         </div>
       </div>
@@ -209,11 +212,13 @@
   </div>
 
   <script>
-  // ---------- (unchanged JS logic) ----------
+  // -------------- CONFIG & ENDPOINTS --------------
   const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
   const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
   const INTERVAL = '15m';
   const LOOKBACK_EMA200 = 240;
+
+  // small blacklist (kept from original)
   const blacklist = [
     "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
     "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
@@ -222,34 +227,123 @@
     "STRAXUSDT","COMBOUSDT","AI16ZUSDT","MILKUSDT","TOKENUSDT","SXPUSDT","MYROUSDT","1000XUSDT","DARUSDT"
   ];
 
-  // UI refs
+  // -------------- UI REFS --------------
   const startBtn = document.getElementById('startPoll');
-  const stopBtn = document.getElementById('stopPoll');
+  const pauseBtn = document.getElementById('pausePoll');
+  const refreshBtn = document.getElementById('refreshOnce');
+  const analyzeBtn = document.getElementById('analyze');
+
   const pollIntervalInput = document.getElementById('pollInterval');
   const maxAnalyzeInput = document.getElementById('maxAnalyze');
   const batchSizeInput = document.getElementById('batchSize');
   const batchDelayInput = document.getElementById('batchDelay');
-  const analyzeBtn = document.getElementById('analyze');
-  const statusEl = document.getElementById('status');
+  const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
+  const soundToggle = document.getElementById('soundToggle');
+
   const pairsTbody = document.querySelector('#pairsTable tbody');
   const topTbody = document.querySelector('#topTable tbody');
-  const soundToggle = document.getElementById('soundToggle');
-  const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
-  const stopAtrMultInput = document.getElementById('stopAtrMult');
-  const tp1AtrMultInput = document.getElementById('tp1AtrMult');
-  const tp2AtrMultInput = document.getElementById('tp2AtrMult');
-  const crossWindowInput = document.getElementById('crossWindow');
+  const statusText = document.getElementById('statusText');
+  const statusDot = document.getElementById('statusDot');
+  const lastUpdatedEl = document.getElementById('lastUpdated');
 
-  function setStatus(s){ statusEl.textContent = s; }
+  const searchBox = document.getElementById('searchBox');
+  const crossFilter = document.getElementById('crossFilter');
+  const sortBy = document.getElementById('sortBy');
 
+  // -------------- STATE --------------
   let pollTimer = null;
   let latestTickers = [];
+  let lastResults = [];
+  let isPaused = false;
+  let audioCtx = null, audioUnlocked = false;
 
-  async function safeFetch(url, params = null) {
+  // load persisted UI settings
+  function saveSettings(){
+    localStorage.setItem('scanner.settings', JSON.stringify({
+      pollInterval: pollIntervalInput.value,
+      maxAnalyze: maxAnalyzeInput.value,
+      batchSize: batchSizeInput.value,
+      batchDelay: batchDelayInput.value,
+      autoAnalyze: autoAnalyzeToggle.checked,
+      sound: soundToggle.checked
+    }));
+  }
+  function loadSettings(){
+    try {
+      const s = JSON.parse(localStorage.getItem('scanner.settings') || '{}');
+      if(s.pollInterval) pollIntervalInput.value = s.pollInterval;
+      if(s.maxAnalyze) maxAnalyzeInput.value = s.maxAnalyze;
+      if(s.batchSize) batchSizeInput.value = s.batchSize;
+      if(s.batchDelay) batchDelayInput.value = s.batchDelay;
+      if(typeof s.autoAnalyze === 'boolean') autoAnalyzeToggle.checked = s.autoAnalyze;
+      if(typeof s.sound === 'boolean') soundToggle.checked = s.sound;
+    } catch(e){}
+  }
+  loadSettings();
+
+  // debounce helper
+  function debounce(fn, wait=300){
+    let t;
+    return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); };
+  }
+
+  // status UI helpers
+  function setStatus(text, running=false){
+    statusText.textContent = text;
+    if(running){
+      statusDot.classList.remove('idle');
+      statusDot.classList.add('running');
+    } else {
+      statusDot.classList.remove('running');
+      statusDot.classList.add('idle');
+    }
+  }
+  function setLastUpdated(ts = Date.now()){
+    lastUpdatedEl.textContent = new Date(ts).toLocaleString();
+  }
+
+  // audio helpers (same as original but simplified)
+  function ensureAudioContext(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().then(()=> audioUnlocked = true).catch(()=> audioUnlocked=false);
+    } else audioUnlocked = true;
+  }
+  function playBeep(freq=880, duration=120, volume=0.12, type='sine'){
+    if (!soundToggle.checked) return;
+    if (!audioCtx) try{ ensureAudioContext(); } catch(e){ return; }
+    if (!audioUnlocked) return;
+    try {
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, now);
+      g.gain.setValueAtTime(volume, now);
+      g.gain.linearRampToValueAtTime(0.0001, now + duration/1000);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + duration/1000 + 0.02);
+    } catch(e){}
+  }
+  function playNotification(){
+    if (!soundToggle.checked) return;
+    playBeep(1046,80,0.08); setTimeout(()=>playBeep(1318,70,0.07),120);
+  }
+
+  // -------------- Fetch & compute helpers --------------
+  async function safeFetch(url, params = null, timeout = 15000) {
     const p = params ? '?' + new URLSearchParams(params).toString() : '';
-    const res = await fetch(url + p);
-    if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
-    return res.json();
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(), timeout);
+    try {
+      const res = await fetch(url + p, { signal: controller.signal });
+      clearTimeout(id);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      return res.json();
+    } catch(e){
+      clearTimeout(id);
+      throw e;
+    }
   }
 
   function filterTickers(allTickers) {
@@ -260,8 +354,7 @@
         lastPrice: Number(t.lastPrice),
         priceChangePercent: Number(t.priceChangePercent),
         quoteVolume: Number(t.quoteVolume)
-      }))
-      .sort((a,b) => (b.quoteVolume || 0) - (a.quoteVolume || 0));
+      }));
   }
 
   function renderPairs(list){
@@ -275,6 +368,9 @@
         <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
         <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
         <td class="small" id="cross-${item.symbol}">—</td>
+        <td class="small">
+          <a class="link" href="https://www.tradingview.com/symbols/${encodeURIComponent(item.symbol)}/" target="_blank" rel="noopener">Chart</a>
+        </td>
       `;
       pairsTbody.appendChild(tr);
     });
@@ -302,6 +398,7 @@
     });
   }
 
+  // EMA and ATR — same algorithm as original (keeps behavior)
   function emaSeries(values, period){
     if (values.length < period) return null;
     const k = 2 / (period + 1);
@@ -332,7 +429,6 @@
     return atr;
   }
 
-  // Detect recent EMA70/EMA200 cross within crossWindow candles
   function checkEMACross(klines, crossWindow = 3) {
     if (!klines || klines.length < 210) return { ok:false };
     const closes = klines.map(k=>k.c);
@@ -397,64 +493,13 @@
     }));
   }
 
-  async function batchAnalyzeCross(symbols, batchSize=5, batchDelay=1200) {
-    const results = [];
-    const crossWindow = Math.max(1, Number(crossWindowInput.value) || 3);
-    for (let i=0;i<symbols.length;i+=batchSize) {
-      const batch = symbols.slice(i, i+batchSize);
-      setStatus(`analyzing cross batch ${Math.floor(i/batchSize)+1} / ${Math.ceil(symbols.length/batchSize)}`);
-      const promises = batch.map(async sym => {
-        try {
-          const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
-          const chk = checkEMACross(kl, crossWindow);
-          return { sym, chk, kl };
-        } catch (e) {
-          return { sym, error: e.message || String(e) };
-        }
-      });
-      const resolved = await Promise.all(promises);
-      results.push(...resolved);
-      if (i + batchSize < symbols.length) {
-        await new Promise(r => setTimeout(r, batchDelay));
-      }
-    }
-    setStatus('EMA cross analysis complete');
-    return results;
-  }
-
-  // Audio helpers
-  let audioCtx = null;
-  let audioUnlocked = false;
-  function ensureAudioContext() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(()=>{ audioUnlocked = true }).catch(()=>{ audioUnlocked=false; });
-    } else audioUnlocked = true;
-  }
-  function playBeep(freq=880, duration=120, volume=0.12, type='sine') {
-    if (!audioCtx) try{ ensureAudioContext(); } catch(e){ return; }
-    if (!audioUnlocked) return;
-    try {
-      const now = audioCtx.currentTime;
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, now);
-      g.gain.setValueAtTime(volume, now);
-      g.gain.linearRampToValueAtTime(volume, now + 0.01);
-      g.gain.linearRampToValueAtTime(0.0001, now + duration/1000);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(now); o.stop(now + duration/1000 + 0.02);
-    } catch(e){}
-  }
-  function playNotification(){ if (!soundToggle.checked) return; playBeep(1046,80,0.08); setTimeout(()=>playBeep(1318,70,0.07),120); setTimeout(()=>playBeep(1568,60,0.06),220); }
-
+  // Build trade setup (unchanged logic, kept for familiarity)
   function buildTradeSetupByCross(sym, chk, klines){
     if (!chk || !chk.ok || !chk.crossType) return null;
     const atr = computeATR(klines.slice(-40), 14) || computeATR(klines, 14) || 0;
-    const stopAtrMult = Math.max(0.1, Number(stopAtrMultInput.value) || 0.8);
-    const tp1AtrMult = Math.max(0.1, Number(tp1AtrMultInput.value) || 1.5);
-    const tp2AtrMult = Math.max(0.1, Number(tp2AtrMultInput.value) || 3.0);
+    const stopAtrMult = Math.max(0.1, Number(document.getElementById('stopAtrMult')?.value || 0.8));
+    const tp1AtrMult = Math.max(0.1, Number(document.getElementById('tp1AtrMult')?.value || 1.5));
+    const tp2AtrMult = Math.max(0.1, Number(document.getElementById('tp2AtrMult')?.value || 3.0));
     const lastClose = chk.lastClose;
     const lastLow = chk.lastLow;
     const lastHigh = chk.lastHigh;
@@ -481,7 +526,34 @@
     return { symbol: sym, direction, entry, stop, tp1, tp2, rr1, rr2, atr, prec };
   }
 
-  async function handleCrossResultsAndPlaySound(results){
+  // -------------- Analysis & orchestration --------------
+  async function batchAnalyzeCross(symbols, batchSize=5, batchDelay=1200) {
+    const results = [];
+    const crossWindow = Math.max(1, Number(document.getElementById('crossWindow')?.value || 3));
+    // process in batches to avoid rate-limiting
+    for (let i=0;i<symbols.length;i+=batchSize) {
+      const batch = symbols.slice(i, i+batchSize);
+      setStatus(`analyzing batch ${Math.floor(i/batchSize)+1}/${Math.ceil(symbols.length/batchSize)}`, true);
+      const promises = batch.map(async sym => {
+        try {
+          const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
+          const chk = checkEMACross(kl, crossWindow);
+          return { sym, chk, kl };
+        } catch (e) {
+          return { sym, error: e.message || String(e) };
+        }
+      });
+      const resolved = await Promise.all(promises);
+      results.push(...resolved);
+      if (i + batchSize < symbols.length) {
+        await new Promise(r => setTimeout(r, batchDelay));
+      }
+    }
+    setStatus('EMA cross analysis complete', false);
+    return results;
+  }
+
+  function handleCrossResultsAndPlaySound(results){
     const detected = [];
     results.forEach(r=>{
       const id = 'cross-' + r.sym;
@@ -530,63 +602,180 @@
     });
 
     renderTop(detected.slice(0,50));
-    setStatus(`EMA cross analysis finished. ${detected.length} symbols with cross setups`);
+    setStatus(`EMA cross analysis finished. ${detected.length} symbols with cross setups`, false);
   }
 
-  async function pollTickersOnce(){
+  // -------------- Polling --------------
+  async function pollTickersOnce({ doAnalyze = false } = {}) {
     try {
-      const raw = await safeFetch(TICKER_24H);
+      setStatus('polling tickers...', true);
+      const raw = await safeFetch(TICKER_24H, null, 15000);
       const filtered = filterTickers(raw);
+      // sort by quoteVolume desc by default for display
+      filtered.sort((a,b)=> (b.quoteVolume || 0) - (a.quoteVolume || 0));
       latestTickers = filtered;
       renderPairs(filtered.slice(0,500));
-      setStatus(`polled ${raw.length} tickers, ${filtered.length} USDT perpetuals (blacklist removed)`);
+      setStatus(`polled ${raw.length} tickers — ${filtered.length} USDT perpetuals (blacklist removed)`, false);
+      setLastUpdated();
+      lastResults = []; // clear previous results container
 
-      if (autoAnalyzeToggle.checked) {
+      // optionally run auto analyze
+      if ((doAnalyze || autoAnalyzeToggle.checked) && latestTickers.length) {
         ensureAudioContext();
         const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
         const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
         const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
         const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-        setStatus(`(auto) starting EMA cross analysis for ${toAnalyze.length} symbols...`);
+        setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols...`, true);
         const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
-        await handleCrossResultsAndPlaySound(results);
+        lastResults = results;
+        handleCrossResultsAndPlaySound(results);
       }
-    } catch(e){
-      setStatus('poll error: ' + e.message);
+    } catch (e) {
       console.error(e);
+      setStatus('poll error: ' + (e.message || e), false);
     }
   }
 
+  // -------------- UI Behavior --------------
   startBtn.onclick = ()=>{
+    // save settings
+    saveSettings();
     const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
     if (pollTimer) clearInterval(pollTimer);
     ensureAudioContext();
-    pollTickersOnce();
-    pollTimer = setInterval(pollTickersOnce, interval * 1000);
-    startBtn.disabled = true; stopBtn.disabled = false;
-    setStatus('polling started');
+    pollTickersOnce({ doAnalyze: false });
+    pollTimer = setInterval(()=>{ if(!isPaused) pollTickersOnce({ doAnalyze: false }); }, interval * 1000);
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    setStatus('polling started', true);
   };
-  stopBtn.onclick = ()=>{
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    startBtn.disabled = false; stopBtn.disabled = true; setStatus('polling stopped');
+
+  pauseBtn.onclick = ()=>{
+    isPaused = !isPaused;
+    pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+    pauseBtn.classList.toggle('warn', isPaused);
+    setStatus(isPaused ? 'polling paused' : (pollTimer ? 'polling resumed' : 'not polling'), !isPaused);
+  };
+
+  refreshBtn.onclick = ()=> {
+    setStatus('manual refresh...', true);
+    pollTickersOnce({ doAnalyze: false }).then(()=> setStatus('manual refresh done', false));
   };
 
   analyzeBtn.onclick = async ()=>{
-    if (!latestTickers || latestTickers.length === 0) { setStatus('no symbols to analyze - run poll first'); return; }
+    if (!latestTickers || latestTickers.length === 0) { setStatus('no symbols to analyze - run poll first', false); return; }
     ensureAudioContext();
+    saveSettings();
     const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
     const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
     const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
     const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-    setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`);
+    setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`, true);
     const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
-    await handleCrossResultsAndPlaySound(results);
+    lastResults = results;
+    handleCrossResultsAndPlaySound(results);
   };
 
-  setStatus('idle — click "Start Live Polling"');
+  // show cross results in the pairs table and allow filtering/search
+  function applySearchAndFilter(){
+    const q = (searchBox.value || '').trim().toLowerCase();
+    const filter = crossFilter.value;
+    const sortVal = sortBy.value;
 
-  // optional auto-start
+    let items = latestTickers.slice();
+
+    // apply cross results if available (so filter by cross type works)
+    const crossMap = {};
+    (lastResults || []).forEach(r => { if(r && r.sym && r.chk && r.chk.ok && r.chk.crossType) crossMap[r.sym] = r.chk.crossType; });
+
+    // filter symbols by cross filter
+    if (filter === 'BULL') items = items.filter(i => crossMap[i.symbol] === 'BULL');
+    else if (filter === 'BEAR') items = items.filter(i => crossMap[i.symbol] === 'BEAR');
+    else if (filter === 'NO_CROSS') items = items.filter(i => !crossMap[i.symbol]);
+
+    // apply text search
+    if (q) {
+      items = items.filter(i => i.symbol.toLowerCase().includes(q));
+    }
+
+    // sort
+    switch(sortVal){
+      case 'volume_desc': items.sort((a,b)=> (b.quoteVolume||0) - (a.quoteVolume||0)); break;
+      case 'volume_asc': items.sort((a,b)=> (a.quoteVolume||0) - (b.quoteVolume||0)); break;
+      case 'change_desc': items.sort((a,b)=> (b.priceChangePercent||0) - (a.priceChangePercent||0)); break;
+      case 'change_asc': items.sort((a,b)=> (a.priceChangePercent||0) - (b.priceChangePercent||0)); break;
+      case 'symbol_asc': items.sort((a,b)=> a.symbol.localeCompare(b.symbol)); break;
+    }
+
+    renderPairs(items.slice(0,500));
+    // if we have lastResults, re-apply cross badges
+    if (lastResults && lastResults.length) {
+      lastResults.forEach(r=>{
+        const id = 'cross-' + r.sym;
+        const cell = document.getElementById(id);
+        if (cell && r.chk && r.chk.ok && r.chk.crossType) {
+          cell.textContent = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
+          cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
+        }
+      });
+    }
+  }
+  const debouncedApply = debounce(applySearchAndFilter, 180);
+  searchBox.addEventListener('input', debouncedApply);
+  crossFilter.addEventListener('change', applySearchAndFilter);
+  sortBy.addEventListener('change', applySearchAndFilter);
+
+  // keyboard: Enter in search triggers analyze for power users
+  searchBox.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter') analyzeBtn.click();
+  });
+
+  // store settings on change
+  [pollIntervalInput, maxAnalyzeInput, batchSizeInput, batchDelayInput, autoAnalyzeToggle, soundToggle].forEach(el=>{
+    el.addEventListener('change', saveSettings);
+  });
+
+  // initial state
+  setStatus('idle — click "Start" or "Refresh" to load tickers', false);
+
+  // optional: auto-start polling disabled by default
   // startBtn.click();
+
+  // small usability: allow clicking table headers to sort quickly
+  document.querySelectorAll('#pairsTable thead th').forEach(th=>{
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', ()=>{
+      const col = th.getAttribute('data-col');
+      if (!col) return;
+      if (col === 'vol') sortBy.value = 'volume_desc';
+      else if (col === 'change') sortBy.value = 'change_desc';
+      else if (col === 'symbol') sortBy.value = 'symbol_asc';
+      applySearchAndFilter();
+    });
+  });
+
+  // create optional inputs for ATR multipliers so user can tweak from UI (safe defaults)
+  (function createAtrControls(){
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.gap = '8px';
+    container.style.marginTop = '8px';
+    container.innerHTML = `
+      <label class="chip"> Stop ATR× <input id="stopAtrMult" type="number" step="0.1" min="0.1" value="0.8" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> TP1 ATR× <input id="tp1AtrMult" type="number" step="0.1" min="0.1" value="1.5" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> TP2 ATR× <input id="tp2AtrMult" type="number" step="0.1" min="0.1" value="3.0" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> Cross window <input id="crossWindow" type="number" min="1" value="3" style="width:64px; margin-left:6px;"></label>
+    `;
+    document.querySelector('.card.wide .help').appendChild(container);
+  })();
+
+  // small UX touch: persist lastResults in memory during session (already using lastResults)
+  // and re-apply filters after page load
+  window.addEventListener('load', ()=>{
+    setTimeout(()=> applySearchAndFilter(), 300);
+  });
+
   </script>
 </body>
 </html>
