@@ -160,7 +160,6 @@
                 <th data-col="last">Last</th>
                 <th data-col="change">24h %</th>
                 <th data-col="vol">QuoteVol</th>
-                <th data-col="actions">Actions</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -360,7 +359,6 @@
         <td class="num">${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
         <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
         <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="small" id="cross-${item.symbol}">—</td>
         <td class="small">
           <a class="link" href="https://www.tradingview.com/symbols/${encodeURIComponent(item.symbol)}/" target="_blank" rel="noopener">Chart</a>
         </td>
@@ -380,12 +378,6 @@
         <td><strong>${r.symbol}</strong></td>
         <td class="${crossCls}">${crossText}</td>
         <td class="${dirCls}">${r.direction}</td>
-        <td class="num">${r.entry.toFixed(r.prec)}</td>
-        <td class="num">${r.stop.toFixed(r.prec)}</td>
-        <td class="num">${r.tp1.toFixed(r.prec)}</td>
-        <td class="num">${r.tp2.toFixed(r.prec)}</td>
-        <td class="num">${r.rr1.toFixed(2)}</td>
-        <td class="num">${r.rr2.toFixed(2)}</td>
       `;
       topTbody.appendChild(tr);
     });
