@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures — EMA70/EMA200 Cross Scanner + Leverage Calculator</title>
+  <title>Binance Futures — EMA70/EMA200 Cross Scanner (Improved UI)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root{
@@ -60,22 +60,20 @@
     .spinner{ width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.06);border-top-color:var(--accent);animation:spin .9s linear infinite; display:inline-block; }
     @keyframes spin{to{transform:rotate(360deg)}}
     .help{ font-size:12px;color:var(--muted); margin-top:8px; }
-
-    /* Leverage calculator specific */
-    .calc-input { width:110px; padding:8px; border-radius:8px; background: #0b1220; border:1px solid #334155; color: #e6eef8; text-align:right; }
-    .calc-list { margin-top:8px; display:flex; flex-direction:column; gap:8px; }
-    .calc-item { display:flex; justify-content:space-between; gap:12px; border-radius:8px; padding:8px; border:1px solid rgba(255,255,255,0.03); }
-    .calc-item .danger { color: #ff9b9b; font-weight:700; }
-    .calc-add { display:flex; gap:8px; align-items:center; margin-top:8px; }
-
+    /* responsive small */
     @media (max-width:600px){
-      .grid{ grid-template-columns: 1fr; }
+      button{ flex:1 1 auto; min-width:0; }
+      .controls{ gap:6px; }
+      .chip{ font-size:12px; padding:6px; }
+      input, select{ font-size:13px; }
+      th, td{ padding:8px 6px; font-size:12px; }
+      h1{ font-size:16px; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Binance Futures — EMA70/EMA200 Cross Scanner + Leverage Calculator</h1>
+    <h1>Binance Futures — EMA70/EMA200 Cross Scanner</h1>
 
     <div class="topbar">
       <div class="controls">
@@ -162,7 +160,6 @@
                 <th data-col="last">Last</th>
                 <th data-col="change">24h %</th>
                 <th data-col="vol">QuoteVol</th>
-                <th data-col="cross">EMA Cross</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -172,595 +169,598 @@
         <div class="legend" style="margin-top:8px;">
           <div class="badge"><span class="green">●</span> Bull cross</div>
           <div class="badge"><span class="red">●</span> Bear cross</div>
-          <div class="badge">Click a symbol's chart link to open TradingView</div>
+          <div class="badge">Click a symbol's chart link to open Binance</div>
         </div>
       </div>
 
-      <!-- Right column: Leverage calculator + Top candidates -->
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <!-- Leverage Calculator Card -->
-        <div class="card" id="calcCard">
-          <h2>📈 Leverage Profit & Loss Calculator</h2>
-          <div class="muted">Quick calculator for position P/L and liquidation warning.</div>
+      <!-- Right: top candidates -->
+      <div class="card wide">
+        <h2>Top EMA cross candidates + trade setups</h2>
+        <div class="muted">Setups are ATR-based (14 × 15m ATR). Entry uses last close.</div>
 
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <label class="muted">🪙 Capital (margin)</label>
-              <input id="calcCapital" class="calc-input" type="number" min="0" value="10" />
-            </div>
-
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <label class="muted">📊 Leverage</label>
-              <input id="calcLeverage" class="calc-input" type="number" min="1" value="20" />
-            </div>
-
-            <div class="calc-add">
-              <input id="calcInputPercent" type="number" placeholder="Add % move" class="calc-input" style="width:120px;" />
-              <button id="calcAddBtn" class="secondary" style="padding:8px 10px;">➕ Add</button>
-              <div style="flex:1"></div>
-            </div>
-
-            <div class="calc-list" id="calcList"></div>
-
-            <div class="muted" style="font-size:12px;margin-top:6px;">
-              ⚠️ Approx. liquidation threshold: <span id="liqText" style="color:#ffd36b;font-weight:700;">0.00%</span> loss at <span id="liqLeverage">20x</span>.
-            </div>
-          </div>
+        <div class="table-wrap card-body" style="padding-top:6px;">
+          <table id="topTable" role="table" aria-label="Top EMA candidates">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Cross</th>
+                <th>Dir</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
 
-        <!-- Top EMA cross candidates -->
-        <div class="card wide">
-          <h2>Top EMA cross candidates + trade setups</h2>
-          <div class="muted">Setups are ATR-based (14 × 15m ATR). Entry uses last close.</div>
-
-          <div class="table-wrap card-body" style="padding-top:6px;">
-            <table id="topTable" role="table" aria-label="Top EMA candidates">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Cross</th>
-                  <th>24h %</th>
-                  <th>Dir</th>
-                  <th class="small">Entry</th>
-                  <th class="small">Stop</th>
-                  <th class="small">TP1</th>
-                  <th class="small">TP2</th>
-                  <th class="small">R:R1</th>
-                  <th class="small">R:R2</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <div class="help">
-            Tips:
-            <ul style="margin:6px 0 0 18px; padding:0;">
-              <li>Click Start or Analyze once to unlock audio (required by browsers).</li>
-              <li>Enable Auto-analyze carefully — it fetches many klines (keep Max symbols low).</li>
-            </ul>
-          </div>
+        <div class="help">
+          Tips:
+          <ul style="margin:6px 0 0 18px; padding:0;">
+            <li>Click <strong>Start</strong> once to unlock audio on some browsers.</li>
+            <li>Auto-analyze will analyze top <em>Max symbols</em> after each poll.</li>
+            <li>Use <strong>Refresh</strong> for a single poll without enabling polling interval.</li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Guard: only run in the real browser (prevents SSR/build errors)
-    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-      window.addEventListener('DOMContentLoaded', function () {
-        /* ============================
-           Full scanner + calculator
-           (exact same logic as before)
-           ============================ */
+  // -------------- CONFIG & ENDPOINTS --------------
+  const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
+  const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
+  const INTERVAL = '15m';
+  const LOOKBACK_EMA200 = 240;
 
-        // --- CONFIG & ENDPOINTS ---
-        const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
-        const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
-        const INTERVAL = '15m';
-        const LOOKBACK_EMA200 = 240;
+  // small blacklist (kept from original)
+  const blacklist = [
+    "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
+    "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
+    "STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT",
+    "BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT",
+    "STRAXUSDT","COMBOUSDT","AI16ZUSDT","MILKUSDT","TOKENUSDT","SXPUSDT","MYROUSDT","1000XUSDT","DARUSDT"
+  ];
 
-        // blacklist
-        const blacklist = ["ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT","LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT","STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT","BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT","STRAXUSDT","COMBOUSDT","AI16ZUSDT","MILKUSDT","TOKENUSDT","SXPUSDT","MYROUSDT","1000XUSDT","DARUSDT"];
+  // -------------- UI REFS --------------
+  const startBtn = document.getElementById('startPoll');
+  const pauseBtn = document.getElementById('pausePoll');
+  const refreshBtn = document.getElementById('refreshOnce');
+  const analyzeBtn = document.getElementById('analyze');
 
-        // --- UI refs ---
-        const startBtn = document.getElementById('startPoll');
-        const pauseBtn = document.getElementById('pausePoll');
-        const refreshBtn = document.getElementById('refreshOnce');
-        const analyzeBtn = document.getElementById('analyze');
-        const pollIntervalInput = document.getElementById('pollInterval');
-        const maxAnalyzeInput = document.getElementById('maxAnalyze');
-        const batchSizeInput = document.getElementById('batchSize');
-        const batchDelayInput = document.getElementById('batchDelay');
-        const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
-        const soundToggle = document.getElementById('soundToggle');
-        const searchBox = document.getElementById('searchBox');
-        const crossFilter = document.getElementById('crossFilter');
-        const sortBy = document.getElementById('sortBy');
-        const statusText = document.getElementById('statusText');
-        const statusDot = document.getElementById('statusDot');
-        const lastUpdatedEl = document.getElementById('lastUpdated');
-        const pairsTbody = document.querySelector('#pairsTable tbody');
-        const topTbody = document.querySelector('#topTable tbody');
+  const pollIntervalInput = document.getElementById('pollInterval');
+  const maxAnalyzeInput = document.getElementById('maxAnalyze');
+  const batchSizeInput = document.getElementById('batchSize');
+  const batchDelayInput = document.getElementById('batchDelay');
+  const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
+  const soundToggle = document.getElementById('soundToggle');
 
-        // calculator refs
-        const capitalInput = document.getElementById('calcCapital');
-        const leverageInput = document.getElementById('calcLeverage');
-        const percentInput = document.getElementById('calcInputPercent');
-        const addBtn = document.getElementById('calcAddBtn');
-        const listEl = document.getElementById('calcList');
-        const liqText = document.getElementById('liqText');
-        const liqLeverage = document.getElementById('liqLeverage');
+  const pairsTbody = document.querySelector('#pairsTable tbody');
+  const topTbody = document.querySelector('#topTable tbody');
+  const statusText = document.getElementById('statusText');
+  const statusDot = document.getElementById('statusDot');
+  const lastUpdatedEl = document.getElementById('lastUpdated');
 
-        // --- state ---
-        let pollTimer = null;
-        let latestTickers = [];
-        let lastResults = [];
-        let isPaused = false;
-        let audioCtx = null, audioUnlocked = false;
+  const searchBox = document.getElementById('searchBox');
+  const crossFilter = document.getElementById('crossFilter');
+  const sortBy = document.getElementById('sortBy');
 
-        // --- util helpers ---
-        function setStatus(text, running=false){
-          statusText.textContent = text;
-          if(running){ statusDot.classList.remove('idle'); statusDot.classList.add('running'); }
-          else { statusDot.classList.remove('running'); statusDot.classList.add('idle'); }
+  // -------------- STATE --------------
+  let pollTimer = null;
+  let latestTickers = [];
+  let lastResults = [];
+  let isPaused = false;
+  let audioCtx = null, audioUnlocked = false;
+
+  // load persisted UI settings
+  function saveSettings(){
+    localStorage.setItem('scanner.settings', JSON.stringify({
+      pollInterval: pollIntervalInput.value,
+      maxAnalyze: maxAnalyzeInput.value,
+      batchSize: batchSizeInput.value,
+      batchDelay: batchDelayInput.value,
+      autoAnalyze: autoAnalyzeToggle.checked,
+      sound: soundToggle.checked
+    }));
+  }
+  function loadSettings(){
+    try {
+      const s = JSON.parse(localStorage.getItem('scanner.settings') || '{}');
+      if(s.pollInterval) pollIntervalInput.value = s.pollInterval;
+      if(s.maxAnalyze) maxAnalyzeInput.value = s.maxAnalyze;
+      if(s.batchSize) batchSizeInput.value = s.batchSize;
+      if(s.batchDelay) batchDelayInput.value = s.batchDelay;
+      if(typeof s.autoAnalyze === 'boolean') autoAnalyzeToggle.checked = s.autoAnalyze;
+      if(typeof s.sound === 'boolean') soundToggle.checked = s.sound;
+    } catch(e){}
+  }
+  loadSettings();
+
+  // debounce helper
+  function debounce(fn, wait=300){
+    let t;
+    return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); };
+  }
+
+  // status UI helpers
+  function setStatus(text, running=false){
+    statusText.textContent = text;
+    if(running){
+      statusDot.classList.remove('idle');
+      statusDot.classList.add('running');
+    } else {
+      statusDot.classList.remove('running');
+      statusDot.classList.add('idle');
+    }
+  }
+  function setLastUpdated(ts = Date.now()){
+    lastUpdatedEl.textContent = new Date(ts).toLocaleString();
+  }
+
+  // audio helpers (same as original but simplified)
+  function ensureAudioContext(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().then(()=> audioUnlocked = true).catch(()=> audioUnlocked=false);
+    } else audioUnlocked = true;
+  }
+  function playBeep(freq=880, duration=120, volume=0.12, type='sine'){
+    if (!soundToggle.checked) return;
+    if (!audioCtx) try{ ensureAudioContext(); } catch(e){ return; }
+    if (!audioUnlocked) return;
+    try {
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, now);
+      g.gain.setValueAtTime(volume, now);
+      g.gain.linearRampToValueAtTime(0.0001, now + duration/1000);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + duration/1000 + 0.02);
+    } catch(e){}
+  }
+  function playNotification(){
+    if (!soundToggle.checked) return;
+    playBeep(1046,80,0.08); setTimeout(()=>playBeep(1318,70,0.07),120);
+  }
+
+  // -------------- Fetch & compute helpers --------------
+  async function safeFetch(url, params = null, timeout = 15000) {
+    const p = params ? '?' + new URLSearchParams(params).toString() : '';
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(), timeout);
+    try {
+      const res = await fetch(url + p, { signal: controller.signal });
+      clearTimeout(id);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      return res.json();
+    } catch(e){
+      clearTimeout(id);
+      throw e;
+    }
+  }
+
+  function filterTickers(allTickers) {
+    return allTickers
+      .filter(t => t.symbol && t.symbol.endsWith('USDT') && !blacklist.includes(t.symbol))
+      .map(t => ({
+        symbol: t.symbol,
+        lastPrice: Number(t.lastPrice),
+        priceChangePercent: Number(t.priceChangePercent),
+        quoteVolume: Number(t.quoteVolume)
+      }));
+  }
+
+  function renderPairs(list){
+    pairsTbody.innerHTML = '';
+    list.forEach(item => {
+      const tr = document.createElement('tr');
+      const cls = item.priceChangePercent > 0 ? 'green' : (item.priceChangePercent < 0 ? 'red' : 'small');
+      tr.innerHTML = `
+        <td><strong>${item.symbol}</strong></td>
+        <td class="num">${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
+        <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
+        <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+        <td class="small">
+          <a class="link" href="https://www.tradingview.com/symbols/${encodeURIComponent(item.symbol)}/" target="_blank" rel="noopener">Chart</a>
+        </td>
+      `;
+      pairsTbody.appendChild(tr);
+    });
+  }
+
+  function renderTop(results){
+    topTbody.innerHTML = '';
+    results.forEach(r=>{
+      const tr = document.createElement('tr');
+      const crossText = r.crossType === 'BULL' ? 'EMA70>EMA200 (bull)' : 'EMA70<EMA200 (bear)';
+      const crossCls = r.crossType === 'BULL' ? 'green' : 'red';
+      const dirCls = r.direction === 'LONG' ? 'green' : 'red';
+      tr.innerHTML = `
+        <td><strong>${r.symbol}</strong></td>
+        <td class="${crossCls}">${crossText}</td>
+        <td class="${dirCls}">${r.direction}</td>
+      `;
+      topTbody.appendChild(tr);
+    });
+  }
+
+  // EMA and ATR — same algorithm as original (keeps behavior)
+  function emaSeries(values, period){
+    if (values.length < period) return null;
+    const k = 2 / (period + 1);
+    const out = new Array(values.length).fill(null);
+    let sma = values.slice(0, period).reduce((a,b)=>a+b,0)/period;
+    out[period-1] = sma;
+    let prev = sma;
+    for (let i = period; i < values.length; i++) {
+      const cur = values[i] * k + prev * (1 - k);
+      out[i] = cur;
+      prev = cur;
+    }
+    return out;
+  }
+
+  function computeATR(klines, period = 14){
+    if (!klines || klines.length < period + 1) return null;
+    const trs = [];
+    for (let i = 1; i < klines.length; i++) {
+      const hi = klines[i].h;
+      const lo = klines[i].l;
+      const prevC = klines[i-1].c;
+      const tr = Math.max(hi - lo, Math.abs(hi - prevC), Math.abs(lo - prevC));
+      trs.push(tr);
+    }
+    const slice = trs.slice(-period);
+    const atr = slice.reduce((a,b)=>a+b,0)/slice.length;
+    return atr;
+  }
+
+  function checkEMACross(klines, crossWindow = 3) {
+    if (!klines || klines.length < 210) return { ok:false };
+    const closes = klines.map(k=>k.c);
+    const ema70 = emaSeries(closes, 70);
+    const ema200 = emaSeries(closes, 200);
+    if (!ema70 || !ema200) return { ok:false };
+
+    const diff = [];
+    const n = ema70.length;
+    for (let i = n - (crossWindow + 1); i < n; i++) {
+      if (i >= 0) diff.push(ema70[i] - ema200[i]);
+    }
+    if (diff.length < 2) return { ok:false };
+
+    let crossType = null;
+    let crossIndexFromEnd = null;
+    for (let j = 1; j < diff.length; j++) {
+      const prev = diff[j-1];
+      const cur = diff[j];
+      if (prev <= 0 && cur > 0) {
+        crossType = 'BULL';
+        crossIndexFromEnd = diff.length - 1 - j;
+        break;
+      }
+      if (prev >= 0 && cur < 0) {
+        crossType = 'BEAR';
+        crossIndexFromEnd = diff.length - 1 - j;
+        break;
+      }
+    }
+
+    const lastIdx = closes.length - 1;
+    const lastClose = closes[lastIdx];
+    const lastHigh = klines[lastIdx].h;
+    const lastLow = klines[lastIdx].l;
+
+    return {
+      ok: true,
+      ema70Series: ema70,
+      ema200Series: ema200,
+      crossType,
+      crossIndexFromEnd,
+      lastClose,
+      lastHigh,
+      lastLow,
+      closes,
+      highs: klines.map(k=>k.h),
+      lows: klines.map(k=>k.l)
+    };
+  }
+
+  async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200) {
+    const params = { symbol, interval, limit };
+    const data = await safeFetch(KLINES, params);
+    return data.map(k => ({
+      t: k[0],
+      o: parseFloat(k[1]),
+      h: parseFloat(k[2]),
+      l: parseFloat(k[3]),
+      c: parseFloat(k[4]),
+      v: parseFloat(k[5])
+    }));
+  }
+
+  // Build trade setup (unchanged logic, kept for familiarity)
+  function buildTradeSetupByCross(sym, chk, klines){
+    if (!chk || !chk.ok || !chk.crossType) return null;
+    const atr = computeATR(klines.slice(-40), 14) || computeATR(klines, 14) || 0;
+    const stopAtrMult = Math.max(0.1, Number(document.getElementById('stopAtrMult')?.value || 0.8));
+    const tp1AtrMult = Math.max(0.1, Number(document.getElementById('tp1AtrMult')?.value || 1.5));
+    const tp2AtrMult = Math.max(0.1, Number(document.getElementById('tp2AtrMult')?.value || 3.0));
+    const lastClose = chk.lastClose;
+    const lastLow = chk.lastLow;
+    const lastHigh = chk.lastHigh;
+    let prec = 4;
+    if (lastClose >= 100) prec = 2; else if (lastClose >= 10) prec = 3; else if (lastClose < 1) prec = 6;
+    const direction = chk.crossType === 'BULL' ? 'LONG' : 'SHORT';
+    const entry = lastClose;
+    let stop;
+    if (direction === 'LONG') {
+      const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
+      stop = Math.min(lastLow - atr * stopAtrMult, (ema200Latest ? ema200Latest - atr * 0.25 : lastLow - atr*stopAtrMult));
+      if (stop >= entry) stop = entry - Math.max(atr * 0.2, (entry * 0.0005));
+    } else {
+      const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
+      stop = Math.max(lastHigh + atr * stopAtrMult, (ema200Latest ? ema200Latest + atr * 0.25 : lastHigh + atr*stopAtrMult));
+      if (stop <= entry) stop = entry + Math.max(atr * 0.2, (entry * 0.0005));
+    }
+    let tp1,tp2;
+    if (direction === 'LONG') { tp1 = entry + atr * tp1AtrMult; tp2 = entry + atr * tp2AtrMult; }
+    else { tp1 = entry - atr * tp1AtrMult; tp2 = entry - atr * tp2AtrMult; }
+    const risk = Math.abs(entry - stop);
+    const rr1 = risk > 0 ? Math.abs(tp1 - entry) / risk : 0;
+    const rr2 = risk > 0 ? Math.abs(tp2 - entry) / risk : 0;
+    return { symbol: sym, direction, entry, stop, tp1, tp2, rr1, rr2, atr, prec };
+  }
+
+  // -------------- Analysis & orchestration --------------
+  async function batchAnalyzeCross(symbols, batchSize=5, batchDelay=1200) {
+    const results = [];
+    const crossWindow = Math.max(1, Number(document.getElementById('crossWindow')?.value || 3));
+    // process in batches to avoid rate-limiting
+    for (let i=0;i<symbols.length;i+=batchSize) {
+      const batch = symbols.slice(i, i+batchSize);
+      setStatus(`analyzing batch ${Math.floor(i/batchSize)+1}/${Math.ceil(symbols.length/batchSize)}`, true);
+      const promises = batch.map(async sym => {
+        try {
+          const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
+          const chk = checkEMACross(kl, crossWindow);
+          return { sym, chk, kl };
+        } catch (e) {
+          return { sym, error: e.message || String(e) };
         }
-        function setLastUpdated(ts = Date.now()){ lastUpdatedEl.textContent = new Date(ts).toLocaleString(); }
+      });
+      const resolved = await Promise.all(promises);
+      results.push(...resolved);
+      if (i + batchSize < symbols.length) {
+        await new Promise(r => setTimeout(r, batchDelay));
+      }
+    }
+    setStatus('EMA cross analysis complete', false);
+    return results;
+  }
 
-        function safeFetch(url, params=null, timeout=15000){
-          const p = params ? '?' + new URLSearchParams(params).toString() : '';
-          const controller = new AbortController();
-          const id = setTimeout(()=>controller.abort(), timeout);
-          return fetch(url + p, { signal: controller.signal })
-            .then(res=>{ clearTimeout(id); if(!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-            .catch(err => { clearTimeout(id); throw err; });
+  function handleCrossResultsAndPlaySound(results){
+    const detected = [];
+    results.forEach(r=>{
+      const id = 'cross-' + r.sym;
+      const cell = document.getElementById(id);
+      if (cell) {
+        if (r.chk && r.chk.ok && r.chk.crossType) {
+          const txt = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
+          cell.textContent = txt;
+          cell.classList.remove('green','red');
+          cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
+        } else {
+          cell.textContent = '—';
+          cell.classList.remove('green','red');
         }
-
-        function filterTickers(all){
-          return all.filter(t => t.symbol && t.symbol.endsWith('USDT') && !blacklist.includes(t.symbol))
-            .map(t => ({ symbol: t.symbol, lastPrice: Number(t.lastPrice), priceChangePercent: Number(t.priceChangePercent), quoteVolume: Number(t.quoteVolume) }));
-        }
-
-        function renderPairs(list){
-          pairsTbody.innerHTML = '';
-          list.forEach(item=>{
-            const tr = document.createElement('tr');
-            const cls = item.priceChangePercent > 0 ? 'green' : (item.priceChangePercent < 0 ? 'red' : 'small');
-            tr.innerHTML = `
-              <td><strong>${item.symbol}</strong></td>
-              <td class="num">${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
-              <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
-              <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-              <td class="small" id="cross-${item.symbol}">—</td>
-            `;
-            pairsTbody.appendChild(tr);
+      }
+      if (r.chk && r.chk.ok && r.chk.crossType) {
+        const setup = buildTradeSetupByCross(r.sym, r.chk, r.kl || []);
+        if (setup) {
+          detected.push({
+            symbol: r.sym,
+            crossType: r.chk.crossType,
+            crossIndexFromEnd: r.chk.crossIndexFromEnd,
+            closePct: Math.abs(r.chk.lastClose - (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose))/ (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose) * 100,
+            ...setup
           });
         }
+      }
+    });
 
-        function renderTop(results){
-          topTbody.innerHTML = '';
-          (results || []).forEach(r=>{
-            const tr = document.createElement('tr');
-            const crossText = r.crossType === 'BULL' ? 'EMA70>EMA200 (bull)' : 'EMA70<EMA200 (bear)';
-            const crossCls = r.crossType === 'BULL' ? 'green' : 'red';
-            const dirCls = r.direction === 'LONG' ? 'green' : 'red';
-            tr.innerHTML = `
-              <td><strong>${r.symbol}</strong></td>
-              <td class="${crossCls}">${crossText}</td>
-              <td class="num ${r.priceChangePercent >= 0 ? 'green' : 'red'}">${(r.priceChangePercent||0).toFixed(2)}%</td>
-              <td class="${dirCls}">${r.direction}</td>
-              <td class="num">${r.entry.toFixed(r.prec)}</td>
-              <td class="num">${r.stop.toFixed(r.prec)}</td>
-              <td class="num">${r.tp1.toFixed(r.prec)}</td>
-              <td class="num">${r.tp2.toFixed(r.prec)}</td>
-              <td class="num">${r.rr1.toFixed(2)}</td>
-              <td class="num">${r.rr2.toFixed(2)}</td>
-            `;
-            topTbody.appendChild(tr);
-          });
+    if (soundToggle.checked && detected.length > 0) {
+      playNotification();
+      let delay=360;
+      detected.slice(0,10).forEach(d=>{
+        setTimeout(()=>{ if (d.crossType==='BULL') playBeep(1400,90,0.09); else playBeep(900,120,0.11); }, delay);
+        delay+=140;
+      });
+    }
+
+    // sort: most recent cross (smaller crossIndexFromEnd) first, then rr1 desc
+    detected.sort((a,b)=>{
+      const ai = (a.crossIndexFromEnd == null) ? 9999 : a.crossIndexFromEnd;
+      const bi = (b.crossIndexFromEnd == null) ? 9999 : b.crossIndexFromEnd;
+      if (ai !== bi) return ai - bi;
+      if ((b.rr1 || 0) !== (a.rr1 || 0)) return (b.rr1 || 0) - (a.rr1 || 0);
+      return Math.abs(b.closePct || 0) - Math.abs(a.closePct || 0);
+    });
+
+    renderTop(detected.slice(0,50));
+    setStatus(`EMA cross analysis finished. ${detected.length} symbols with cross setups`, false);
+  }
+
+  // -------------- Polling --------------
+  async function pollTickersOnce({ doAnalyze = false } = {}) {
+    try {
+      setStatus('polling tickers...', true);
+      const raw = await safeFetch(TICKER_24H, null, 15000);
+      const filtered = filterTickers(raw);
+      // sort by quoteVolume desc by default for display
+      filtered.sort((a,b)=> (b.quoteVolume || 0) - (a.quoteVolume || 0));
+      latestTickers = filtered;
+      renderPairs(filtered.slice(0,500));
+      setStatus(`polled ${raw.length} tickers — ${filtered.length} USDT perpetuals (blacklist removed)`, false);
+      setLastUpdated();
+      lastResults = []; // clear previous results container
+
+      // optionally run auto analyze
+      if ((doAnalyze || autoAnalyzeToggle.checked) && latestTickers.length) {
+        ensureAudioContext();
+        const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
+        const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
+        const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
+        const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
+        setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols...`, true);
+        const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
+        lastResults = results;
+        handleCrossResultsAndPlaySound(results);
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus('poll error: ' + (e.message || e), false);
+    }
+  }
+
+  // -------------- UI Behavior --------------
+  startBtn.onclick = ()=>{
+    // save settings
+    saveSettings();
+    const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
+    if (pollTimer) clearInterval(pollTimer);
+    ensureAudioContext();
+    pollTickersOnce({ doAnalyze: false });
+    pollTimer = setInterval(()=>{ if(!isPaused) pollTickersOnce({ doAnalyze: false }); }, interval * 1000);
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    setStatus('polling started', true);
+  };
+
+  pauseBtn.onclick = ()=>{
+    isPaused = !isPaused;
+    pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+    pauseBtn.classList.toggle('warn', isPaused);
+    setStatus(isPaused ? 'polling paused' : (pollTimer ? 'polling resumed' : 'not polling'), !isPaused);
+  };
+
+  refreshBtn.onclick = ()=> {
+    setStatus('manual refresh...', true);
+    pollTickersOnce({ doAnalyze: false }).then(()=> setStatus('manual refresh done', false));
+  };
+
+  analyzeBtn.onclick = async ()=>{
+    if (!latestTickers || latestTickers.length === 0) { setStatus('no symbols to analyze - run poll first', false); return; }
+    ensureAudioContext();
+    saveSettings();
+    const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
+    const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
+    const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
+    const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
+    setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`, true);
+    const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
+    lastResults = results;
+    handleCrossResultsAndPlaySound(results);
+  };
+
+  // show cross results in the pairs table and allow filtering/search
+  function applySearchAndFilter(){
+    const q = (searchBox.value || '').trim().toLowerCase();
+    const filter = crossFilter.value;
+    const sortVal = sortBy.value;
+
+    let items = latestTickers.slice();
+
+    // apply cross results if available (so filter by cross type works)
+    const crossMap = {};
+    (lastResults || []).forEach(r => { if(r && r.sym && r.chk && r.chk.ok && r.chk.crossType) crossMap[r.sym] = r.chk.crossType; });
+
+    // filter symbols by cross filter
+    if (filter === 'BULL') items = items.filter(i => crossMap[i.symbol] === 'BULL');
+    else if (filter === 'BEAR') items = items.filter(i => crossMap[i.symbol] === 'BEAR');
+    else if (filter === 'NO_CROSS') items = items.filter(i => !crossMap[i.symbol]);
+
+    // apply text search
+    if (q) {
+      items = items.filter(i => i.symbol.toLowerCase().includes(q));
+    }
+
+    // sort
+    switch(sortVal){
+      case 'volume_desc': items.sort((a,b)=> (b.quoteVolume||0) - (a.quoteVolume||0)); break;
+      case 'volume_asc': items.sort((a,b)=> (a.quoteVolume||0) - (b.quoteVolume||0)); break;
+      case 'change_desc': items.sort((a,b)=> (b.priceChangePercent||0) - (a.priceChangePercent||0)); break;
+      case 'change_asc': items.sort((a,b)=> (a.priceChangePercent||0) - (b.priceChangePercent||0)); break;
+      case 'symbol_asc': items.sort((a,b)=> a.symbol.localeCompare(b.symbol)); break;
+    }
+
+    renderPairs(items.slice(0,500));
+    // if we have lastResults, re-apply cross badges
+    if (lastResults && lastResults.length) {
+      lastResults.forEach(r=>{
+        const id = 'cross-' + r.sym;
+        const cell = document.getElementById(id);
+        if (cell && r.chk && r.chk.ok && r.chk.crossType) {
+          cell.textContent = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
+          cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
         }
+      });
+    }
+  }
+  const debouncedApply = debounce(applySearchAndFilter, 180);
+  searchBox.addEventListener('input', debouncedApply);
+  crossFilter.addEventListener('change', applySearchAndFilter);
+  sortBy.addEventListener('change', applySearchAndFilter);
 
-        /* EMA / ATR / Cross detection (same reliable logic) */
-        function emaSeries(values, period){
-          if (values.length < period) return null;
-          const k = 2 / (period + 1);
-          const out = new Array(values.length).fill(null);
-          let sma = values.slice(0, period).reduce((a,b)=>a+b,0)/period;
-          out[period-1] = sma;
-          let prev = sma;
-          for (let i = period; i < values.length; i++) {
-            const cur = values[i] * k + prev * (1 - k);
-            out[i] = cur;
-            prev = cur;
-          }
-          return out;
-        }
+  // keyboard: Enter in search triggers analyze for power users
+  searchBox.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter') analyzeBtn.click();
+  });
 
-        function computeATR(klines, period = 14){
-          if (!klines || klines.length < period + 1) return null;
-          const trs = [];
-          for (let i = 1; i < klines.length; i++) {
-            const hi = klines[i].h, lo = klines[i].l, prevC = klines[i-1].c;
-            const tr = Math.max(hi - lo, Math.abs(hi - prevC), Math.abs(lo - prevC));
-            trs.push(tr);
-          }
-          const slice = trs.slice(-period);
-          return slice.reduce((a,b)=>a+b,0)/slice.length;
-        }
+  // store settings on change
+  [pollIntervalInput, maxAnalyzeInput, batchSizeInput, batchDelayInput, autoAnalyzeToggle, soundToggle].forEach(el=>{
+    el.addEventListener('change', saveSettings);
+  });
 
-        // returns { ok:true, crossType: 'BULL'|'BEAR'|null, crossIndexFromEnd, ... }
-        function checkEMACross(klines, crossWindow = 3) {
-          if (!klines || klines.length < 210) return { ok:false };
-          const closes = klines.map(k=>k.c);
-          const ema70 = emaSeries(closes, 70);
-          const ema200 = emaSeries(closes, 200);
-          if (!ema70 || !ema200) return { ok:false };
+  // initial state
+  setStatus('idle — click "Start" or "Refresh" to load tickers', false);
 
-          // compute diff for last (crossWindow + 1) points
-          const diff = [];
-          const n = ema70.length;
-          for (let i = n - (crossWindow + 1); i < n; i++) {
-            if (i >= 0) diff.push(ema70[i] - ema200[i]);
-          }
-          if (diff.length < 2) return { ok:false };
+  // optional: auto-start polling disabled by default
+  // startBtn.click();
 
-          let crossType = null, crossIndexFromEnd = null;
-          for (let j = 1; j < diff.length; j++) {
-            const prev = diff[j-1], cur = diff[j];
-            // previous was below (<=0) and current above (>0) => EMA70 crossed ABOVE EMA200 => BULL
-            if (prev <= 0 && cur > 0) { crossType = 'BULL'; crossIndexFromEnd = diff.length - 1 - j; break; }
-            // previous was above (>=0) and current below (<0) => EMA70 crossed BELOW EMA200 => BEAR
-            if (prev >= 0 && cur < 0) { crossType = 'BEAR'; crossIndexFromEnd = diff.length - 1 - j; break; }
-          }
+  // small usability: allow clicking table headers to sort quickly
+  document.querySelectorAll('#pairsTable thead th').forEach(th=>{
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', ()=>{
+      const col = th.getAttribute('data-col');
+      if (!col) return;
+      if (col === 'vol') sortBy.value = 'volume_desc';
+      else if (col === 'change') sortBy.value = 'change_desc';
+      else if (col === 'symbol') sortBy.value = 'symbol_asc';
+      applySearchAndFilter();
+    });
+  });
 
-          const lastIdx = closes.length - 1;
-          return {
-            ok: true,
-            ema70Series: ema70,
-            ema200Series: ema200,
-            crossType,
-            crossIndexFromEnd,
-            lastClose: closes[lastIdx],
-            lastHigh: klines[lastIdx].h,
-            lastLow: klines[lastIdx].l,
-            closes,
-            highs: klines.map(k=>k.h),
-            lows: klines.map(k=>k.l)
-          };
-        }
+  // create optional inputs for ATR multipliers so user can tweak from UI (safe defaults)
+  (function createAtrControls(){
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.gap = '8px';
+    container.style.marginTop = '8px';
+    container.innerHTML = `
+      <label class="chip"> Stop ATR× <input id="stopAtrMult" type="number" step="0.1" min="0.1" value="0.8" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> TP1 ATR× <input id="tp1AtrMult" type="number" step="0.1" min="0.1" value="1.5" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> TP2 ATR× <input id="tp2AtrMult" type="number" step="0.1" min="0.1" value="3.0" style="width:64px; margin-left:6px;"></label>
+      <label class="chip"> Cross window <input id="crossWindow" type="number" min="1" value="3" style="width:64px; margin-left:6px;"></label>
+    `;
+    document.querySelector('.card.wide .help').appendChild(container);
+  })();
 
-        async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200) {
-          const params = { symbol, interval, limit };
-          const data = await safeFetch(KLINES, params);
-          return data.map(k => ({ t:k[0], o:parseFloat(k[1]), h:parseFloat(k[2]), l:parseFloat(k[3]), c:parseFloat(k[4]), v:parseFloat(k[5]) }));
-        }
+  // small UX touch: persist lastResults in memory during session (already using lastResults)
+  // and re-apply filters after page load
+  window.addEventListener('load', ()=>{
+    setTimeout(()=> applySearchAndFilter(), 300);
+  });
 
-        /* Build trade setup (same as your logic) */
-        function buildTradeSetupByCross(sym, chk, klines, priceChangePercent = 0){
-          if (!chk || !chk.ok || !chk.crossType) return null;
-          const atr = computeATR(klines.slice(-40), 14) || computeATR(klines, 14) || 0;
-          const stopAtrMult = Math.max(0.1, Number(document.getElementById('stopAtrMult')?.value || 0.8));
-          const tp1AtrMult = Math.max(0.1, Number(document.getElementById('tp1AtrMult')?.value || 1.5));
-          const tp2AtrMult = Math.max(0.1, Number(document.getElementById('tp2AtrMult')?.value || 3.0));
-          const lastClose = chk.lastClose;
-          const lastLow = chk.lastLow;
-          const lastHigh = chk.lastHigh;
-          let prec = 4;
-          if (lastClose >= 100) prec = 2; else if (lastClose >= 10) prec = 3; else if (lastClose < 1) prec = 6;
-          const direction = chk.crossType === 'BULL' ? 'LONG' : 'SHORT';
-          const entry = lastClose;
-          let stop;
-          if (direction === 'LONG') {
-            const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
-            stop = Math.min(lastLow - atr * stopAtrMult, (ema200Latest ? ema200Latest - atr * 0.25 : lastLow - atr*stopAtrMult));
-            if (stop >= entry) stop = entry - Math.max(atr * 0.2, (entry * 0.0005));
-          } else {
-            const ema200Latest = chk.ema200Series ? chk.ema200Series[chk.ema200Series.length -1] : null;
-            stop = Math.max(lastHigh + atr * stopAtrMult, (ema200Latest ? ema200Latest + atr * 0.25 : lastHigh + atr*stopAtrMult));
-            if (stop <= entry) stop = entry + Math.max(atr * 0.2, (entry * 0.0005));
-          }
-          let tp1,tp2;
-          if (direction === 'LONG') { tp1 = entry + atr * tp1AtrMult; tp2 = entry + atr * tp2AtrMult; }
-          else { tp1 = entry - atr * tp1AtrMult; tp2 = entry - atr * tp2AtrMult; }
-          const risk = Math.abs(entry - stop);
-          const rr1 = risk > 0 ? Math.abs(tp1 - entry) / risk : 0;
-          const rr2 = risk > 0 ? Math.abs(tp2 - entry) / risk : 0;
-          return { symbol: sym, direction, entry, stop, tp1, tp2, rr1, rr2, atr, prec, priceChangePercent };
-        }
-
-        async function batchAnalyzeCross(symbols, batchSize=5, batchDelay=1200) {
-          const results = [];
-          const crossWindow = Math.max(1, Number(document.getElementById('crossWindow')?.value || 3));
-          for (let i=0;i<symbols.length;i+=batchSize) {
-            const batch = symbols.slice(i, i+batchSize);
-            setStatus(`analyzing batch ${Math.floor(i/batchSize)+1}/${Math.ceil(symbols.length/batchSize)}`, true);
-            const promises = batch.map(async sym => {
-              try {
-                const kl = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
-                const chk = checkEMACross(kl, crossWindow);
-                return { sym, chk, kl };
-              } catch (e) {
-                return { sym, error: e.message || String(e) };
-              }
-            });
-            const resolved = await Promise.all(promises);
-            results.push(...resolved);
-            if (i + batchSize < symbols.length) {
-              await new Promise(r => setTimeout(r, batchDelay));
-            }
-          }
-          setStatus('EMA cross analysis complete', false);
-          return results;
-        }
-
-        function ensureAudioContext(){
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().then(()=> audioUnlocked = true).catch(()=> audioUnlocked=false);
-          else audioUnlocked = true;
-        }
-        function playBeep(freq=880, duration=120, volume=0.12, type='sine'){ if (!soundToggle.checked) return; if (!audioCtx) try{ ensureAudioContext(); }catch(e){return;} if(!audioUnlocked) return; try{ const now = audioCtx.currentTime; const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type=type; o.frequency.setValueAtTime(freq, now); g.gain.setValueAtTime(volume, now); g.gain.linearRampToValueAtTime(0.0001, now + duration/1000); o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + duration/1000 + 0.02);}catch(e){}
-        function playNotification(){ if (!soundToggle.checked) return; playBeep(1046,80,0.08); setTimeout(()=>playBeep(1318,70,0.07),120); }
-
-        async function handleCrossResultsAndPlaySound(results){
-          const detected = [];
-          // we need priceChangePercent for sorting by 24h change later; pull from latestTickers map
-          const priceMap = {};
-          latestTickers.forEach(t=> priceMap[t.symbol] = t.priceChangePercent);
-
-          results.forEach(r=>{
-            const id = 'cross-' + r.sym;
-            const cell = document.getElementById(id);
-            if (cell) {
-              if (r.chk && r.chk.ok && r.chk.crossType) {
-                const txt = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
-                cell.textContent = txt;
-                cell.classList.remove('green','red');
-                cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
-              } else {
-                cell.textContent = '—';
-                cell.classList.remove('green','red');
-              }
-            }
-            if (r.chk && r.chk.ok && r.chk.crossType) {
-              const setup = buildTradeSetupByCross(r.sym, r.chk, r.kl || [], priceMap[r.sym] || 0);
-              if (setup) {
-                detected.push({
-                  symbol: r.sym,
-                  crossType: r.chk.crossType,
-                  crossIndexFromEnd: r.chk.crossIndexFromEnd,
-                  closePct: Math.abs(r.chk.lastClose - (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose))/ (r.chk.ema200Series ? r.chk.ema200Series[r.chk.ema200Series.length-1] : r.chk.lastClose) * 100,
-                  priceChangePercent: priceMap[r.sym] || 0,
-                  ...setup
-                });
-              }
-            }
-          });
-
-          if (soundToggle.checked && detected.length > 0) {
-            playNotification();
-            let delay=360;
-            detected.slice(0,10).forEach(d=>{
-              setTimeout(()=>{ if (d.crossType==='BULL') playBeep(1400,90,0.09); else playBeep(900,120,0.11); }, delay);
-              delay+=140;
-            });
-          }
-
-          // sort: most recent cross (smaller crossIndexFromEnd) first, then R:R1 desc
-          detected.sort((a,b)=>{
-            const ai = (a.crossIndexFromEnd == null) ? 9999 : a.crossIndexFromEnd;
-            const bi = (b.crossIndexFromEnd == null) ? 9999 : b.crossIndexFromEnd;
-            if (ai !== bi) return ai - bi;
-            if ((b.rr1 || 0) !== (a.rr1 || 0)) return (b.rr1 || 0) - (a.rr1 || 0);
-            return Math.abs(b.closePct || 0) - Math.abs(a.closePct || 0);
-          });
-
-          // If you want to sort by 24h price change instead, replace the previous sort with:
-          // detected.sort((a,b)=> (b.priceChangePercent||0) - (a.priceChangePercent||0));
-
-          renderTop(detected.slice(0,50));
-          setStatus(`EMA cross analysis finished. ${detected.length} symbols with cross setups`, false);
-          lastResults = results;
-        }
-
-        async function pollTickersOnce({ doAnalyze = false } = {}) {
-          try {
-            setStatus('polling tickers...', true);
-            const raw = await safeFetch(TICKER_24H, null, 15000);
-            const filtered = filterTickers(raw);
-            filtered.sort((a,b)=> (b.quoteVolume || 0) - (a.quoteVolume || 0));
-            latestTickers = filtered;
-            renderPairs(filtered.slice(0,500));
-            setStatus(`polled ${raw.length} tickers — ${filtered.length} USDT perpetuals (blacklist removed)`, false);
-            setLastUpdated();
-            lastResults = [];
-
-            if ((doAnalyze || autoAnalyzeToggle.checked) && latestTickers.length) {
-              ensureAudioContext();
-              const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
-              const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
-              const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
-              const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-              setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols...`, true);
-              const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
-              await handleCrossResultsAndPlaySound(results);
-            }
-          } catch (e) {
-            console.error(e);
-            setStatus('poll error: ' + (e.message || e), false);
-          }
-        }
-
-        // --- UI behavior (start/stop/analyze) ---
-        startBtn.onclick = ()=>{
-          const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
-          if (pollTimer) clearInterval(pollTimer);
-          ensureAudioContext();
-          pollTickersOnce({ doAnalyze: false });
-          pollTimer = setInterval(()=>{ if(!isPaused) pollTickersOnce({ doAnalyze: false }); }, interval * 1000);
-          startBtn.disabled = true; pauseBtn.disabled = false;
-          setStatus('polling started', true);
-        };
-
-        pauseBtn.onclick = ()=>{
-          isPaused = !isPaused;
-          pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
-          pauseBtn.classList.toggle('warn', isPaused);
-          setStatus(isPaused ? 'polling paused' : (pollTimer ? 'polling resumed' : 'not polling'), !isPaused);
-        };
-
-        refreshBtn.onclick = ()=> {
-          setStatus('manual refresh...', true);
-          pollTickersOnce({ doAnalyze: false }).then(()=> setStatus('manual refresh done', false));
-        };
-
-        analyzeBtn.onclick = async ()=>{
-          if (!latestTickers || latestTickers.length === 0) { setStatus('no symbols to analyze - run poll first', false); return; }
-          ensureAudioContext();
-          const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
-          const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
-          const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
-          const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-          setStatus(`starting EMA cross analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms).`, true);
-          const results = await batchAnalyzeCross(toAnalyze, batchSize, batchDelay);
-          await handleCrossResultsAndPlaySound(results);
-        };
-
-        // Search/filter UI
-        function applySearchAndFilter(){
-          const q = (searchBox.value || '').trim().toLowerCase();
-          const filter = crossFilter.value;
-          const sortVal = sortBy.value;
-          let items = latestTickers.slice();
-
-          const crossMap = {};
-          (lastResults || []).forEach(r => { if(r && r.sym && r.chk && r.chk.ok && r.chk.crossType) crossMap[r.sym] = r.chk.crossType; });
-
-          if (filter === 'BULL') items = items.filter(i => crossMap[i.symbol] === 'BULL');
-          else if (filter === 'BEAR') items = items.filter(i => crossMap[i.symbol] === 'BEAR');
-          else if (filter === 'NO_CROSS') items = items.filter(i => !crossMap[i.symbol]);
-
-          if (q) items = items.filter(i => i.symbol.toLowerCase().includes(q));
-
-          switch(sortVal){
-            case 'volume_desc': items.sort((a,b)=> (b.quoteVolume||0) - (a.quoteVolume||0)); break;
-            case 'volume_asc': items.sort((a,b)=> (a.quoteVolume||0) - (b.quoteVolume||0)); break;
-            case 'change_desc': items.sort((a,b)=> (b.priceChangePercent||0) - (a.priceChangePercent||0)); break;
-            case 'change_asc': items.sort((a,b)=> (a.priceChangePercent||0) - (b.priceChangePercent||0)); break;
-            case 'symbol_asc': items.sort((a,b)=> a.symbol.localeCompare(b.symbol)); break;
-          }
-
-          renderPairs(items.slice(0,500));
-
-          if (lastResults && lastResults.length) {
-            lastResults.forEach(r=>{
-              const id = 'cross-' + r.sym;
-              const cell = document.getElementById(id);
-              if (cell && r.chk && r.chk.ok && r.chk.crossType) {
-                cell.textContent = r.chk.crossType === 'BULL' ? '70→200 (bull)' : '70→200 (bear)';
-                cell.classList.add(r.chk.crossType === 'BULL' ? 'green' : 'red');
-              }
-            });
-          }
-        }
-        const debounce = (fn, wait=200)=>{ let t; return function(...a){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,a), wait); } };
-        searchBox.addEventListener('input', debounce(applySearchAndFilter,180));
-        crossFilter.addEventListener('change', applySearchAndFilter);
-        sortBy.addEventListener('change', applySearchAndFilter);
-
-        // header-click quick sort
-        document.querySelectorAll('#pairsTable thead th').forEach(th=>{
-          th.style.cursor = 'pointer';
-          th.addEventListener('click', ()=>{
-            const col = th.getAttribute('data-col');
-            if (!col) return;
-            if (col === 'vol') sortBy.value = 'volume_desc';
-            else if (col === 'change') sortBy.value = 'change_desc';
-            else if (col === 'symbol') sortBy.value = 'symbol_asc';
-            applySearchAndFilter();
-          });
-        });
-
-        // persist settings (basic)
-        function saveSettings(){
-          localStorage.setItem('scanner.settings', JSON.stringify({
-            pollInterval: pollIntervalInput.value,
-            maxAnalyze: maxAnalyzeInput.value,
-            batchSize: batchSizeInput.value,
-            batchDelay: batchDelayInput.value,
-            autoAnalyze: autoAnalyzeToggle.checked,
-            sound: soundToggle.checked
-          }));
-        }
-        function loadSettings(){
-          try {
-            const s = JSON.parse(localStorage.getItem('scanner.settings') || '{}');
-            if(s.pollInterval) pollIntervalInput.value = s.pollInterval;
-            if(s.maxAnalyze) maxAnalyzeInput.value = s.maxAnalyze;
-            if(s.batchSize) batchSizeInput.value = s.batchSize;
-            if(s.batchDelay) batchDelayInput.value = s.batchDelay;
-            if(typeof s.autoAnalyze === 'boolean') autoAnalyzeToggle.checked = s.autoAnalyze;
-            if(typeof s.sound === 'boolean') soundToggle.checked = s.sound;
-          } catch(e){}
-        }
-        [pollIntervalInput, maxAnalyzeInput, batchSizeInput, batchDelayInput, autoAnalyzeToggle, soundToggle].forEach(el=>el.addEventListener('change', saveSettings));
-        loadSettings();
-
-        // initial status
-        setStatus('idle — click "Start" or "Refresh" to load tickers', false);
-
-        /* =====================
-           Leverage Calculator
-           ===================== */
-        (function leverageCalculatorInit(){
-          let capital = parseFloat(capitalInput.value) || 0;
-          let leverage = parseFloat(leverageInput.value) || 1;
-          let moves = [4,7,10];
-
-          function positionSize(){ return capital * leverage; }
-          function liquidationThreshold(){ return 100 / leverage; }
-          function calcPL(percent){ return (percent / 100) * positionSize(); }
-          function formatMoney(n){ return Number(n).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
-
-          function renderList(){
-            listEl.innerHTML = '';
-            const sorted = Array.from(new Set(moves)).sort((a,b)=>a-b);
-            sorted.forEach(p=>{
-              const isLiquidation = (Math.abs(p) >= liquidationThreshold());
-              const item = document.createElement('div'); item.className='calc-item';
-              const left = document.createElement('div'); left.style.display='flex'; left.style.flexDirection='column'; left.style.gap='6px';
-              left.innerHTML = `<div>📈 ${p}% Gain → <span style="color:#6ee7b7;font-weight:700;">+ $${formatMoney(calcPL(p))}</span></div>
-                                <div>📉 ${p}% Loss → <span class="${isLiquidation? 'danger':''}">- $${formatMoney(calcPL(-p))}</span></div>`;
-              const right = document.createElement('div'); right.style.display='flex'; right.style.flexDirection='column'; right.style.alignItems='flex-end';
-              const removeBtn = document.createElement('button'); removeBtn.className='secondary'; removeBtn.style.padding='6px 8px'; removeBtn.textContent='✖';
-              removeBtn.onclick = ()=>{ moves = moves.filter(x=>x!==p); renderList(); };
-              right.appendChild(removeBtn);
-              if (isLiquidation){ const w=document.createElement('div'); w.style.color='#ff9b9b'; w.style.fontSize='12px'; w.style.fontWeight='700'; w.textContent='⚠️ Risk of Liquidation'; right.appendChild(w); }
-              item.appendChild(left); item.appendChild(right); listEl.appendChild(item);
-            });
-            liqText.textContent = liquidationThreshold().toFixed(2) + '%';
-            liqLeverage.textContent = leverage;
-          }
-
-          renderList();
-
-          addBtn.addEventListener('click', ()=>{
-            const val = parseFloat(percentInput.value);
-            if (!isNaN(val)) { moves = Array.from(new Set([...moves, val])); percentInput.value=''; renderList(); }
-          });
-          percentInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter') addBtn.click(); });
-
-          capitalInput.addEventListener('input', ()=>{ const v=parseFloat(capitalInput.value); capital = isFinite(v)? v : 0; renderList(); });
-          leverageInput.addEventListener('input', ()=>{ const v=parseFloat(leverageInput.value); leverage = isFinite(v) && v>0 ? v : 1; renderList(); });
-
-          // helpful: expose state
-          window.__leverageCalc = { getState: ()=> ({ capital, leverage, moves, pos: positionSize(), liq: liquidationThreshold() }) };
-        })();
-
-        // little UX: apply filters if we already have tickers
-        window.addEventListener('load', ()=>{ setTimeout(()=> applySearchAndFilter(), 300); });
-
-      }); // DOMContentLoaded
-    } // guard
   </script>
 </body>
 </html>
