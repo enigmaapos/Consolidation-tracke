@@ -2,488 +2,288 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Binance Futures (Perp USDT) — Live Filter + Consolidation + EMA200 Touch</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Binance Futures — EMA200 Touch (Responsive)</title>
   <style>
-    body { font-family: Inter, Roboto, Arial; background:#0f1720; color:#e6eef8; margin:16px; }
-    h1 { margin:0 0 8px 0; font-size:18px; }
-    .controls { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-    button { padding:8px 12px; border:0; background:#0ea5a4; color:#042024; border-radius:6px; cursor:pointer; }
-    button.secondary { background:#334155; color:#e6eef8; }
-    input, select { padding:6px 8px; border-radius:6px; border:1px solid #334155; background:#0b1220; color:#e6eef8; }
-    table { width:100%; border-collapse:collapse; margin-top:8px; }
-    th, td { padding:8px 6px; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
-    th { color:#9fb3c8; font-weight:600; font-size:12px; text-transform:uppercase; }
-    .green { color:#5eead4; } .red { color:#fb7185; }
-    .muted { color:#94a3b8; font-size:12px; }
-    .status { margin-left:8px; font-size:13px; color:#94a3b8; }
-    .small { font-size:12px; color:#a7b8c8; }
-    .chip { padding:4px 8px; border-radius:999px; background:#091826; border:1px solid #153241; }
+    /* Mobile-first, accessible, responsive card layout */
+    :root{
+      --bg:#0f1720; --muted:#94a3b8; --accent:#06b6d4; --card:#071624; --card-2:#0b1220; --success:#10b981; --danger:#fb7185; --glass:rgba(255,255,255,0.03);
+    }
+    html,body{height:100%; margin:0; font-family:Inter, Roboto, system-ui, -apple-system,Segoe UI, Arial; background:linear-gradient(180deg,#071022 0%,var(--bg) 100%); color:#e6eef8;}
+    .app{max-width:1200px; margin:16px auto; padding:16px; box-sizing:border-box;}
+
+    header{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    p.lead{margin:6px 0 0 0; color:var(--muted); font-size:13px}
+
+    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px}
+    .control{display:flex; gap:6px; align-items:center; background:var(--card); padding:8px; border-radius:10px; border:1px solid rgba(255,255,255,0.03)}
+    .control input[type=number]{width:78px;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit}
+    button{background:var(--accent); color:#042024; border:0; padding:8px 12px; border-radius:9px; cursor:pointer; font-weight:600}
+    button.ghost{background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.04)}
+
+    .status{margin-left:8px;color:var(--muted); font-size:13px}
+
+    /* layout: cards grid */
+    .grid{display:grid; gap:12px; margin-top:18px}
+    /* 1 column on phones, 2 on small tablets, 3 on desktop, 4 on wide */
+    @media (min-width:480px){ .grid{grid-template-columns:repeat(2,1fr);} }
+    @media (min-width:820px){ .grid{grid-template-columns:repeat(3,1fr);} }
+    @media (min-width:1100px){ .grid{grid-template-columns:repeat(4,1fr);} }
+
+    .card{background:linear-gradient(180deg,var(--card),var(--card-2)); padding:12px; border-radius:12px; border:1px solid var(--glass); box-shadow:0 6px 18px rgba(2,6,23,0.6);}
+    .card .top{display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .symbol{font-weight:700; font-size:15px}
+    .price{font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px}
+    .badge{padding:6px 8px; border-radius:999px; font-size:12px; background:rgba(255,255,255,0.02); color:var(--muted)}
+
+    .metrics{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+    .metric{flex:1 1 48%; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px; font-size:13px}
+    .metric strong{display:block; font-size:12px; color:var(--muted)}
+
+    .touch{display:inline-flex; gap:8px; align-items:center; margin-top:12px}
+    .touch .ok{color:var(--success); font-weight:700}
+    .touch .near{color:var(--accent); font-weight:700}
+    .touch .no{color:var(--muted)}
+
+    /* table fallback (desktop wide) */
+    .tableWrap{margin-top:18px; display:none}
+    @media (min-width:1100px){ .tableWrap{display:block} .grid{display:none} }
+    table{width:100%; border-collapse:collapse; background:transparent}
+    th,td{padding:10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.03); font-size:13px}
+    th{color:var(--muted); font-size:12px}
+
+    footer{margin-top:18px; color:var(--muted); font-size:13px}
+
+    /* small helpers */
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .flexRow{display:flex; gap:8px; align-items:center}
+
+    /* accessible focus states */
+    button:focus, input:focus{outline:2px solid rgba(6,182,212,0.18); outline-offset:2px}
   </style>
 </head>
 <body>
-  <h1>Binance Futures (Perp USDT) — Live Filter, Consolidation & EMA200 Touch</h1>
-  <div class="controls">
-    <button id="startPoll">Start Live Polling</button>
-    <button id="stopPoll" class="secondary" disabled>Stop Polling</button>
-
-    <label class="chip">
-      Poll interval (s):
-      <input id="pollInterval" type="number" min="5" value="10" style="width:72px; margin-left:6px;">
-    </label>
-
-    <label class="chip">
-      Max symbols to analyze:
-      <input id="maxAnalyze" type="number" min="1" value="20" style="width:72px; margin-left:6px;">
-    </label>
-
-    <label class="chip">
-      Batch size:
-      <input id="batchSize" type="number" min="1" value="5" style="width:60px; margin-left:6px;">
-    </label>
-
-    <label class="chip">
-      Batch delay (ms):
-      <input id="batchDelay" type="number" min="300" value="1200" style="width:80px; margin-left:6px;">
-    </label>
-
-    <button id="analyze" class="secondary">Analyze Consolidation + EMA200 Touch</button>
-
-    <div class="status" id="status">idle</div>
-  </div>
-
-  <div style="display:flex; gap:12px; align-items:flex-start;">
-    <div style="flex:1; min-width:420px;">
-      <div class="muted">Filtered pairs (24h change windows). Blacklist applied.</div>
-      <table id="pairsTable">
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Last</th>
-            <th>24h %</th>
-            <th>QuoteVol</th>
-            <th>Category</th>
-            <th>Consol. (score)</th>
-            <th>200EMA Touch</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div style="width:420px;">
-      <div class="muted">Top candidates (consolidating / EMA200 touch)</div>
-      <table id="topTable">
-        <thead>
-          <tr><th>Symbol</th><th>Class</th><th>Score</th><th>range%</th><th>emaDev%</th><th>EMA200-touch</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="muted" style="margin-top:8px; font-size:13px;">
-        Tips:
-        <ul style="margin:6px 0 0 18px; padding:0; font-size:12px;">
-          <li>EMA200 detection requires ~220 candles per symbol — keep maxAnalyze small to reduce requests.</li>
-          <li>Tune batch size and delay if you see network or rate-limit errors.</li>
-        </ul>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Binance Futures — EMA200 Touch</h1>
+        <p class="lead">Responsive, mobile-first UI that highlights symbols near or touching the EMA200 (15m interval). Removed the previous consolidation module for clarity.</p>
       </div>
+      <div class="flexRow" aria-hidden="false">
+        <div class="control" role="group" aria-label="poll settings">
+          <label class="small muted">Poll (s)</label>
+          <input id="pollInterval" type="number" min="5" value="10" aria-label="poll interval in seconds">
+        </div>
+        <div class="control" role="group" aria-label="analysis settings">
+          <label class="small muted">Max symbols</label>
+          <input id="maxAnalyze" type="number" min="1" value="20" aria-label="maximum symbols to analyze">
+        </div>
+      </div>
+    </header>
+
+    <div class="controls">
+      <button id="startPoll">Start Live Polling</button>
+      <button id="stopPoll" class="ghost" disabled>Stop</button>
+      <button id="checkNow" class="ghost">Check EMA200 Now</button>
+      <div class="status" id="status">idle</div>
     </div>
+
+    <!-- Cards grid for results (mobile-first) -->
+    <div class="grid" id="cardsGrid" aria-live="polite" aria-label="symbols near EMA200"></div>
+
+    <!-- Table fallback for wide screens -->
+    <div class="tableWrap">
+      <div class="muted">Results table (desktop)</div>
+      <table id="resultsTable" role="table" aria-label="results table">
+        <thead>
+          <tr><th>Symbol</th><th>Last</th><th>24h %</th><th>EMA200</th><th>Proximity</th><th>Touch</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <footer>
+      <div class="muted">Notes: EMA200 uses 220 candles (15m). Keep max symbols small to avoid rate limits. This tool only detects EMA200 wick crosses and close proximity; it is for scanning purposes and not trading advice.</div>
+    </footer>
   </div>
 
   <script>
-  // ---------- Configurable constants ----------
-  const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
-  const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
-  const INTERVAL = '15m';
-  const LOOKBACK = 48; // number of candles for consolidation (48 * 15m = 12 hours)
-  const LOOKBACK_EMA200 = 220; // must be >= 200 to compute EMA200 reliably
-  const EMA_PERIODS = [14,21,70]; // used for consolidation; EMA200 is computed separately
-  const RANGE_PCT_THRESHOLD = 3.0;      // default detection thresholds (tweakable in script)
-  const EMA_COMPRESSION_PCT = 0.5;
-  const VOLUME_DROP_PCT = 0.85;
-  const ATR_PCT_THRESHOLD = 0.8;
+    // --- Config ---
+    const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
+    const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
+    const INTERVAL = '15m';
+    const LOOKBACK_EMA200 = 220; // >=200 candles for EMA200
+    const EMA200_TOL_PCT = 0.05; // 0.05% proximity
 
-  // EMA200 touch params
-  const EMA200_TOL_PCT = 0.05; // proximity tolerance (percent). 0.05% default
-  // ------------------------------------------------
+    const blacklist = [
+      "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
+      "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
+      "STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT",
+      "BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT",
+      "STRAXUSDT","COMBOUSDT","AI16ZUSDT"
+    ];
 
-  // Blacklist you provided
-  const blacklist = [
-    "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
-    "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
-    "STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT",
-    "BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT",
-    "STRAXUSDT","COMBOUSDT","AI16ZUSDT"
-  ];
+    // UI refs
+    const startBtn = document.getElementById('startPoll');
+    const stopBtn = document.getElementById('stopPoll');
+    const checkBtn = document.getElementById('checkNow');
+    const pollIntervalInput = document.getElementById('pollInterval');
+    const maxAnalyzeInput = document.getElementById('maxAnalyze');
+    const statusEl = document.getElementById('status');
+    const cardsGrid = document.getElementById('cardsGrid');
+    const resultsTableBody = document.querySelector('#resultsTable tbody');
 
-  // UI elements
-  const startBtn = document.getElementById('startPoll');
-  const stopBtn = document.getElementById('stopPoll');
-  const pollIntervalInput = document.getElementById('pollInterval');
-  const maxAnalyzeInput = document.getElementById('maxAnalyze');
-  const batchSizeInput = document.getElementById('batchSize');
-  const batchDelayInput = document.getElementById('batchDelay');
-  const analyzeBtn = document.getElementById('analyze');
-  const statusEl = document.getElementById('status');
-  const pairsTbody = document.querySelector('#pairsTable tbody');
-  const topTbody = document.querySelector('#topTable tbody');
+    let pollTimer = null;
+    let latestTickers = [];
 
-  let pollTimer = null;
-  let latestTickers = []; // cached tickers that match filters
+    function setStatus(txt){ statusEl.textContent = txt; }
 
-  function setStatus(s) { statusEl.textContent = s; }
-
-  // helper fetch wrapper with error handling
-  async function safeFetch(url, params = null) {
-    const p = params ? '?' + new URLSearchParams(params).toString() : '';
-    const res = await fetch(url + p);
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+    async function safeFetch(url, params=null){
+      const p = params ? '?' + new URLSearchParams(params).toString() : '';
+      const res = await fetch(url + p);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
     }
-    return res.json();
-  }
 
-  // Apply 24h change filters + USDT perp only + blacklist filter
-  function filterTickers(allTickers) {
-    return allTickers
-      .filter(t =>
-        t.symbol &&
-        t.symbol.endsWith('USDT') &&
-        !blacklist.includes(t.symbol)
-      )
-      .map(t => ({
-        symbol: t.symbol,
-        lastPrice: Number(t.lastPrice),
-        priceChangePercent: Number(t.priceChangePercent),
-        quoteVolume: Number(t.quoteVolume)
-      }))
-      .filter(t => {
-        const c = t.priceChangePercent;
-        return (c > 0 && c <= 15) || (c < 0 && c >= -15);
-      })
-      .sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
-  }
-
-  // Render table
-  function renderPairs(list) {
-    pairsTbody.innerHTML = '';
-    list.forEach(item => {
-      const tr = document.createElement('tr');
-      const cls = item.priceChangePercent > 0 ? 'green' : 'red';
-      tr.innerHTML = `
-        <td><strong>${item.symbol}</strong></td>
-        <td>${item.lastPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</td>
-        <td class="${cls}">${item.priceChangePercent.toFixed(2)}%</td>
-        <td class="small">${Number(item.quoteVolume).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="small">${item.priceChangePercent > 0 ? 'Bullish' : 'Bearish'}</td>
-        <td class="small" id="consol-${item.symbol}">—</td>
-        <td class="small" id="ema200-${item.symbol}">—</td>
-      `;
-      pairsTbody.appendChild(tr);
-    });
-  }
-
-  function renderTop(results) {
-    topTbody.innerHTML = '';
-    results.forEach(r => {
-      const tr = document.createElement('tr');
-      const cls = r.classification === 'consolidating' ? 'green' : (r.classification === 'possible-consolidation' ? '' : 'small');
-      const touchCls = r.ema200Touch ? 'green' : (r.ema200CloseProx ? '' : 'small');
-      const touchText = r.ema200Touch ? 'wick-cross' : (r.ema200CloseProx ? 'close-near' : 'no');
-      tr.innerHTML = `
-        <td><strong>${r.symbol}</strong></td>
-        <td class="${cls}">${r.classification}</td>
-        <td>${r.score}</td>
-        <td>${Number(r.rangePct).toFixed(3)}</td>
-        <td>${Number(r.emaMaxDev).toFixed(3)}</td>
-        <td class="${touchCls}">${touchText}</td>
-      `;
-      topTbody.appendChild(tr);
-    });
-  }
-
-  // EMA full-series calculation (returns array of EMA values aligned with values)
-  function emaSeries(values, period) {
-    if (values.length < period) return null;
-    const k = 2 / (period + 1);
-    const out = new Array(values.length).fill(null);
-    // seed SMA for first EMA value at index (period-1)
-    let sma = values.slice(0, period).reduce((a,b)=>a+b,0)/period;
-    out[period-1] = sma;
-    let prev = sma;
-    for (let i = period; i < values.length; i++) {
-      const v = values[i];
-      const cur = v * k + prev * (1 - k);
-      out[i] = cur;
-      prev = cur;
+    function filterTickers(all){
+      return all
+        .filter(t => t.symbol && t.symbol.endsWith('USDT') && !blacklist.includes(t.symbol))
+        .map(t=>({ symbol: t.symbol, lastPrice: Number(t.lastPrice), priceChangePercent: Number(t.priceChangePercent), quoteVolume: Number(t.quoteVolume) }))
+        .filter(t=> Math.abs(t.priceChangePercent) <= 15 )
+        .sort((a,b)=>Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
     }
-    return out;
-  }
 
-  // EMA calculation (returns last EMA value)
-  function emaLast(values, period) {
-    const series = emaSeries(values, period);
-    return series ? series[series.length-1] : null;
-  }
-
-  // ATR computation
-  function computeATR(klines, period = 14) {
-    if (klines.length < period + 1) return null;
-    const trs = [];
-    for (let i=1;i<klines.length;i++) {
-      const hi = klines[i].h, lo = klines[i].l, prevC = klines[i-1].c;
-      const tr = Math.max(hi - lo, Math.abs(hi - prevC), Math.abs(lo - prevC));
-      trs.push(tr);
+    // EMA helper (returns last ema value)
+    function emaSeries(values, period){
+      if(values.length < period) return null;
+      const k = 2/(period+1);
+      const out = new Array(values.length).fill(null);
+      let sma = values.slice(0,period).reduce((a,b)=>a+b,0)/period;
+      out[period-1] = sma; let prev = sma;
+      for(let i=period;i<values.length;i++){ const v = values[i]; const cur = v * k + prev * (1-k); out[i] = cur; prev = cur; }
+      return out;
     }
-    const slice = trs.slice(-period);
-    const atr = slice.reduce((a,b)=>a+b,0)/slice.length;
-    return atr;
-  }
 
-  // Analyze consolidation (same rules as server scanner)
-  function analyzeConsolidation(klines) {
-    if (!klines || klines.length < 8) return { ok: false };
+    function checkEMA200Touch(fullKlines){
+      if(!fullKlines || fullKlines.length < 200) return { ok:false };
+      const closes = fullKlines.map(k=>k.c);
+      const highs = fullKlines.map(k=>k.h);
+      const lows = fullKlines.map(k=>k.l);
+      const ema200Series = emaSeries(closes, 200);
+      if(!ema200Series) return { ok:false };
+      const ema200 = ema200Series[ema200Series.length-1];
+      const lastH = highs[highs.length-1];
+      const lastL = lows[lows.length-1];
+      const lastC = closes[closes.length-1];
+      const strictTouch = (lastH >= ema200 && lastL <= ema200);
+      const closeProximityPct = Math.abs(lastC - ema200)/ema200*100;
+      const closeNear = closeProximityPct <= EMA200_TOL_PCT;
+      return { ok:true, ema200, strictTouch, closeNear, closeProximityPct };
+    }
 
-    const closes = klines.map(k=>k.c);
-    const highs = klines.map(k=>k.h);
-    const lows  = klines.map(k=>k.l);
-    const vols  = klines.map(k=>k.v);
+    async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200){
+      const params = { symbol, interval, limit };
+      const data = await safeFetch(KLINES, params);
+      return data.map(k=>({ t:k[0], o:parseFloat(k[1]), h:parseFloat(k[2]), l:parseFloat(k[3]), c:parseFloat(k[4]), v:parseFloat(k[5]) }));
+    }
 
-    const maxH = Math.max(...highs);
-    const minL = Math.min(...lows);
-    const avgPrice = closes.reduce((a,b)=>a+b,0)/closes.length;
-    const rangePct = (maxH - minL) / avgPrice * 100;
+    // Batch check only EMA200 touch (no consolidation)
+    async function batchCheck(symbols, batchSize=5, batchDelay=800){
+      const out = [];
+      for(let i=0;i<symbols.length;i+=batchSize){
+        const batch = symbols.slice(i, i+batchSize);
+        setStatus(`checking batch ${Math.floor(i/batchSize)+1}/${Math.ceil(symbols.length/batchSize)}`);
+        const promises = batch.map(async sym=>{
+          try{
+            const kl = await fetchKlines(sym);
+            const chk = checkEMA200Touch(kl);
+            return { sym, chk, lastPrice: kl[kl.length-1].c };
+          }catch(e){ return { sym, error: e.message || String(e) } }
+        });
+        const res = await Promise.all(promises);
+        out.push(...res);
+        if(i + batchSize < symbols.length) await new Promise(r=>setTimeout(r, batchDelay));
+      }
+      setStatus('check complete');
+      return out;
+    }
 
-    const emaVals = {};
-    EMA_PERIODS.forEach(p => emaVals[p] = emaLast(closes, p));
-    const emaDevs = Object.values(emaVals).filter(v=>v).map(v => Math.abs(v - avgPrice) / avgPrice * 100);
-    const emaMaxDev = emaDevs.length ? Math.max(...emaDevs) : 999;
-
-    const half = Math.floor(vols.length / 2);
-    const firstAvgVol = vols.slice(0, half).reduce((a,b)=>a+b,0)/Math.max(1, half);
-    const secondAvgVol = vols.slice(half).reduce((a,b)=>a+b,0)/Math.max(1, vols.length-half);
-
-    const mid = Math.floor(klines.length/2);
-    const atrOld = computeATR(klines.slice(0, mid+1), Math.min(14, Math.max(3, Math.floor((mid+1)/4))));
-    const atrRecent = computeATR(klines.slice(mid), Math.min(14, Math.max(3, Math.floor((klines.length-mid)/4))));
-
-    const isTightRange = rangePct <= RANGE_PCT_THRESHOLD;
-    const isEMACompressed = emaMaxDev <= EMA_COMPRESSION_PCT;
-    const isVolumeDropped = secondAvgVol <= firstAvgVol * VOLUME_DROP_PCT;
-    const isATRlower = (atrRecent && atrOld) ? (atrRecent <= atrOld * ATR_PCT_THRESHOLD) : false;
-
-    let score = 0;
-    if (isTightRange) score += 1;
-    if (isEMACompressed) score += 1;
-    if (isVolumeDropped) score += 1;
-    if (isATRlower) score += 1;
-
-    const classification = score >= 3 ? 'consolidating' :
-                           score === 2 ? 'possible-consolidation' :
-                           'not-consolidating';
-
-    return {
-      ok: true,
-      rangePct,
-      emaMaxDev,
-      firstAvgVol,
-      secondAvgVol,
-      atrOld,
-      atrRecent,
-      score,
-      classification
-    };
-  }
-
-  // EMA200 touch check:
-  // - strict: latest candle's high >= ema200 && low <= ema200 (wick crosses)
-  // - proximity: latest close within EMA200_TOL_PCT percent
-  function checkEMA200Touch(fullKlines) {
-    // requires fullKlines with length >= 200
-    if (!fullKlines || fullKlines.length < 200) return { ok: false };
-    const closes = fullKlines.map(k=>k.c);
-    const highs = fullKlines.map(k=>k.h);
-    const lows = fullKlines.map(k=>k.l);
-    // compute ema200 series
-    const ema200Series = emaSeries(closes, 200);
-    if (!ema200Series) return { ok: false };
-    const ema200Latest = ema200Series[ema200Series.length - 1];
-    if (!ema200Latest) return { ok: false };
-    // latest candle
-    const lastH = highs[highs.length - 1];
-    const lastL = lows[lows.length - 1];
-    const lastC = closes[closes.length - 1];
-
-    const strictTouch = (lastH >= ema200Latest && lastL <= ema200Latest);
-    const closeProximityPct = Math.abs(lastC - ema200Latest) / ema200Latest * 100;
-    const closeNear = closeProximityPct <= EMA200_TOL_PCT;
-
-    return {
-      ok: true,
-      ema200: ema200Latest,
-      strictTouch,
-      closeNear,
-      closeProximityPct
-    };
-  }
-
-  // fetch klines and normalize to objects
-  async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK) {
-    const params = { symbol, interval, limit };
-    const data = await safeFetch(KLINES, params);
-    return data.map(k => ({
-      t: k[0],
-      o: parseFloat(k[1]),
-      h: parseFloat(k[2]),
-      l: parseFloat(k[3]),
-      c: parseFloat(k[4]),
-      v: parseFloat(k[5])
-    }));
-  }
-
-  // Batch analyze with safety controls to avoid too many concurrent requests
-  async function batchAnalyze(symbols, batchSize=5, batchDelay=1200) {
-    const results = [];
-    for (let i=0;i<symbols.length;i+=batchSize) {
-      const batch = symbols.slice(i, i+batchSize);
-      setStatus(`analyzing batch ${Math.floor(i/batchSize)+1} / ${Math.ceil(symbols.length/batchSize)}`);
-      const promises = batch.map(async sym => {
-        try {
-          // fetch consolidation klines (smaller limit)
-          const kl = await fetchKlines(sym, INTERVAL, LOOKBACK);
-          const analysis = analyzeConsolidation(kl);
-
-          // fetch extended klines for EMA200 detection (only when needed)
-          const klEma = await fetchKlines(sym, INTERVAL, LOOKBACK_EMA200);
-          const emaChk = checkEMA200Touch(klEma);
-
-          return { sym, analysis, emaChk };
-        } catch (e) {
-          return { sym, error: e.message || String(e) };
-        }
+    // Render results as cards (mobile) and table (desktop)
+    function renderResults(results, tickersMap){
+      cardsGrid.innerHTML = '';
+      results.forEach(r=>{
+        const meta = tickersMap[r.sym] || {};
+        const card = document.createElement('article'); card.className = 'card';
+        const touchText = r.chk && r.chk.ok ? (r.chk.strictTouch ? '<span class="ok">Wick cross</span>' : (r.chk.closeNear ? `<span class="near">Close ~${r.chk.closeProximityPct.toFixed(3)}%</span>` : '<span class="no">No</span>')) : '<span class="muted small">n/a</span>';
+        card.innerHTML = `
+          <div class="top">
+            <div>
+              <div class="symbol">${r.sym}</div>
+              <div class="price small">${meta.lastPrice !== undefined ? Number(meta.lastPrice).toLocaleString(undefined,{maximumFractionDigits:8}) : (r.lastPrice ? Number(r.lastPrice).toLocaleString(undefined,{maximumFractionDigits:8}) : '—')}</div>
+            </div>
+            <div class="badge small">${meta.priceChangePercent !== undefined ? (meta.priceChangePercent.toFixed(2) + '%') : ''}</div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><strong class="muted">EMA200</strong><span>${r.chk && r.chk.ok ? Number(r.chk.ema200).toFixed(6) : 'n/a'}</span></div>
+            <div class="metric"><strong class="muted">Proximity</strong><span>${r.chk && r.chk.ok ? (r.chk.closeProximityPct.toFixed(4) + '%') : 'n/a'}</span></div>
+          </div>
+          <div class="touch">${touchText}</div>
+        `;
+        cardsGrid.appendChild(card);
       });
-      const resolved = await Promise.all(promises);
-      results.push(...resolved);
-      if (i + batchSize < symbols.length) {
-        await new Promise(r => setTimeout(r, batchDelay));
-      }
+
+      // table (desktop)
+      resultsTableBody.innerHTML = '';
+      results.forEach(r=>{
+        const meta = tickersMap[r.sym] || {};
+        const tr = document.createElement('tr');
+        const proximity = r.chk && r.chk.ok ? (r.chk.closeProximityPct.toFixed(4) + '%') : 'n/a';
+        const touch = r.chk && r.chk.ok ? (r.chk.strictTouch ? 'wick-cross' : (r.chk.closeNear ? `close~${r.chk.closeProximityPct.toFixed(3)}%` : 'no')) : 'n/a';
+        tr.innerHTML = `<td>${r.sym}</td><td>${meta.lastPrice !== undefined ? Number(meta.lastPrice).toLocaleString(undefined,{maximumFractionDigits:8}) : (r.lastPrice?Number(r.lastPrice).toLocaleString(): '—')}</td><td class="small muted">${meta.priceChangePercent!==undefined?meta.priceChangePercent.toFixed(2)+'%':''}</td><td>${r.chk && r.chk.ok?Number(r.chk.ema200).toFixed(6):'n/a'}</td><td>${proximity}</td><td>${touch}</td>`;
+        resultsTableBody.appendChild(tr);
+      });
     }
-    setStatus('analysis complete');
-    return results;
-  }
 
-  // Main polling loop (single request per poll)
-  async function pollTickersOnce() {
-    try {
-      const raw = await safeFetch(TICKER_24H);
-      const filtered = filterTickers(raw);
-      latestTickers = filtered;
-      renderPairs(filtered.slice(0, 500)); // limit table to first 500 entries for UI responsiveness
-      setStatus(`polled ${raw.length} tickers, ${filtered.length} matched filters`);
-    } catch (e) {
-      setStatus('poll error: ' + e.message);
-      console.error(e);
+    // Poll tickers once (24h) and cache
+    async function pollTickersOnce(){
+      try{
+        const raw = await safeFetch(TICKER_24H);
+        const filtered = filterTickers(raw);
+        latestTickers = filtered;
+        setStatus(`polled ${raw.length} tickers, ${filtered.length} matched`);
+      }catch(e){ setStatus('poll error: ' + (e.message||e)); console.error(e); }
     }
-  }
 
-  // Event handlers
-  startBtn.onclick = () => {
-    const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
-    if (pollTimer) clearInterval(pollTimer);
-    pollTickersOnce(); // immediate
-    pollTimer = setInterval(pollTickersOnce, interval * 1000);
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    setStatus('polling started');
-  };
+    // Controls
+    startBtn.onclick = () => {
+      const interval = Math.max(5, Number(pollIntervalInput.value) || 10);
+      if(pollTimer) clearInterval(pollTimer);
+      pollTickersOnce();
+      pollTimer = setInterval(pollTickersOnce, interval*1000);
+      startBtn.disabled = true; stopBtn.disabled = false; setStatus('polling started');
+    };
+    stopBtn.onclick = () => { if(pollTimer){ clearInterval(pollTimer); pollTimer=null;} startBtn.disabled=false; stopBtn.disabled=true; setStatus('polling stopped'); };
 
-  stopBtn.onclick = () => {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    setStatus('polling stopped');
-  };
+    // Manual check button — takes top N from cached tickers and runs EMA200 check only
+    checkBtn.onclick = async () => {
+      if(!latestTickers || latestTickers.length===0){ setStatus('no tickers cached — start polling first'); return; }
+      const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
+      const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t=>t.symbol);
+      // create map of meta for rendering
+      const tickersMap = Object.fromEntries(latestTickers.slice(0, maxAnalyze).map(t=>[t.symbol, t]));
+      setStatus(`checking ${toAnalyze.length} symbols for EMA200`);
+      try{
+        const results = await batchCheck(toAnalyze, 4, 900);
+        renderResults(results, tickersMap);
+        const hits = results.filter(r=>r.chk && r.chk.ok && (r.chk.strictTouch || r.chk.closeNear)).length;
+        setStatus(`done — ${hits} near/touch EMA200`);
+      }catch(e){ setStatus('check error: ' + (e.message||e)); console.error(e); }
+    };
 
-  analyzeBtn.onclick = async () => {
-    if (!latestTickers || latestTickers.length === 0) {
-      setStatus('no symbols to analyze - run poll first');
-      return;
-    }
-    const maxAnalyze = Math.max(1, Number(maxAnalyzeInput.value) || 20);
-    const batchSize = Math.max(1, Number(batchSizeInput.value) || 5);
-    const batchDelay = Math.max(300, Number(batchDelayInput.value) || 1200);
-
-    const toAnalyze = latestTickers.slice(0, maxAnalyze).map(t => t.symbol);
-    setStatus(`starting analysis for ${toAnalyze.length} symbols (batch ${batchSize}, delay ${batchDelay}ms). EMA200 uses ${LOOKBACK_EMA200} candles each.`);
-
-    const results = await batchAnalyze(toAnalyze, batchSize, batchDelay);
-
-    // update UI cells and collect consolidating candidates
-    const consolidated = [];
-    results.forEach(r => {
-      const idCon = 'consol-' + r.sym;
-      const idEma = 'ema200-' + r.sym;
-      const cell = document.getElementById(idCon);
-      const cellE = document.getElementById(idEma);
-
-      if (cell) {
-        if (r.analysis && r.analysis.ok) {
-          cell.textContent = `${r.analysis.classification} (${r.analysis.score})`;
-        } else {
-          cell.textContent = 'err';
-        }
-      }
-
-      if (cellE) {
-        if (r.emaChk && r.emaChk.ok) {
-          const txt = r.emaChk.strictTouch ? 'wick-cross' : (r.emaChk.closeNear ? `close~${r.emaChk.closeProximityPct.toFixed(3)}%` : 'no');
-          cellE.textContent = txt;
-          if (r.emaChk.strictTouch || r.emaChk.closeNear) {
-            cellE.classList.add('green');
-          } else {
-            cellE.classList.remove('green');
-          }
-        } else {
-          cellE.textContent = 'n/a';
-        }
-      }
-
-      if (r.analysis && r.analysis.ok) {
-        const out = {
-          symbol: r.sym,
-          classification: r.analysis.classification,
-          score: r.analysis.score,
-          rangePct: r.analysis.rangePct,
-          emaMaxDev: r.analysis.emaMaxDev,
-          ema200Touch: r.emaChk && r.emaChk.ok && r.emaChk.strictTouch,
-          ema200CloseProx: r.emaChk && r.emaChk.ok && r.emaChk.closeNear
-        };
-        if (out.classification === 'consolidating' || out.ema200Touch || out.ema200CloseProx) {
-          consolidated.push(out);
-        }
-      }
-    });
-
-    // sort and show in top table
-    consolidated.sort((a,b) => {
-      // prefer consolidating then ema touch then higher score then tighter range
-      const pa = (a.classification === 'consolidating') ? 10 : 0;
-      const pb = (b.classification === 'consolidating') ? 10 : 0;
-      const ta = a.ema200Touch ? 5 : (a.ema200CloseProx ? 2 : 0);
-      const tb = b.ema200Touch ? 5 : (b.ema200CloseProx ? 2 : 0);
-      const sa = pa + ta + a.score;
-      const sb = pb + tb + b.score;
-      if (sb !== sa) return sb - sa;
-      return a.rangePct - b.rangePct;
-    });
-    renderTop(consolidated.slice(0,50));
-    setStatus(`analysis finished. ${consolidated.length} candidates (consolidating or EMA200 touched) found`);
-  };
-
-  // initial simple UI state
-  setStatus('idle — click "Start Live Polling"');
-
-  // optionally auto-start polling (comment out if not desired)
-  // startBtn.click();
+    // init state
+    setStatus('idle — click Start Live Polling');
   </script>
 </body>
 </html>
