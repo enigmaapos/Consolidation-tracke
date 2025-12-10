@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Binance Futures — EMA70/EMA200 Cross Scanner + Leverage Calculator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1720;
+      --card:#0b1220;
+      --muted:#94a3b8;
+      --accent:#0ea5a4;
+      --accent-2:#06b6d4;
+      --glass-border: rgba(255,255,255,0.04);
+      --green:#5eead4;
+      --red:#fb7185;
+      --radius:12px;
+      --pad:12px;
+      --shadow: 0 6px 18px rgba(2,6,23,0.6);
+      --max-card-height: 60vh;
+    }
+    html,body{height:100%;margin:0;font-family:Inter, Roboto, Arial, system-ui,-apple-system; background:var(--bg); color:#e6eef8; -webkit-font-smoothing:antialiased;}
+    h1{margin:0 0 6px 0;font-size:18px;font-weight:600}
+    .muted{color:var(--muted); font-size:13px}
+    .wrap{padding:16px; max-width:1400px; margin:0 auto; box-sizing:border-box;}
+    .topbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+    .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;}
+    .left { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .right { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    button{ padding:10px 14px; border:0; background:var(--accent); color:var(--bg); border-radius:10px; cursor:pointer; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
+    button.secondary{ background:#334155; color:var(--muted); }
+    button.warn{ background:#ef4444; color:white; }
+    input, select{ padding:8px 10px; border-radius:8px; border:1px solid #334155; background:var(--card); color:inherit; min-height:36px; box-sizing:border-box; }
+    .chip{ padding:6px 10px; border-radius:999px; background:rgba(9,24,38,0.45); border:1px solid rgba(21,50,65,0.6); display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .grid{ display:grid; grid-template-columns: 1fr 760px; gap:12px; align-items:start; }
+    @media (max-width:1100px){ .grid{ grid-template-columns: 1fr 420px; } }
+    @media (max-width:900px){ .grid{ grid-template-columns: 1fr; } }
+    .card{ background:var(--card); border-radius:var(--radius); padding:12px; box-shadow:var(--shadow); border:1px solid var(--glass-border); box-sizing:border-box; }
+    .card h2{ margin:0 0 8px 0; font-size:14px; color:var(--muted); font-weight:600 }
+    table{ width:100%; border-collapse:collapse; font-size:13px; }
+    th, td{ padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:left; vertical-align:middle; }
+    th{ color:#9fb3c8; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; position:sticky; top:0; background:linear-gradient(180deg, rgba(11,18,32,0.75), rgba(11,18,32,0.85)); z-index:2;}
+    tbody tr:hover{ background:rgba(255,255,255,0.02); }
+    tbody tr:nth-child(odd) td{ background: transparent; }
+    .green{ color:var(--green); }
+    .red{ color:var(--red); }
+    .small{ color:var(--muted); font-size:12px; }
+    .num{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+    .table-wrap{ max-height:var(--max-card-height); overflow:auto; padding-top:6px; -webkit-overflow-scrolling:touch; }
+    .wide { max-width:100%; }
+    .status{ margin-left:8px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+    .status .dot{ width:10px; height:10px; border-radius:50%; background:transparent; display:inline-block; }
+    .status .dot.running{ background:var(--green); box-shadow:0 0 8px rgba(94,234,212,0.12); }
+    .status .dot.idle{ background:#334155; }
+    .controls .spacer{ flex:1; }
+    .legend{ display:flex; gap:8px; align-items:center; margin-top:8px; color:var(--muted); font-size:12px; flex-wrap:wrap; }
+    .badge{ padding:4px 8px; border-radius:999px; background:rgba(255,255,255,0.03); color:var(--muted); font-size:12px; }
+    .link{ color:var(--accent-2); text-decoration:none; font-weight:600; }
+    .input-inline{ display:inline-flex; align-items:center; gap:6px; }
+    .spinner{ width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.06);border-top-color:var(--accent);animation:spin .9s linear infinite; display:inline-block; }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .help{ font-size:12px;color:var(--muted); margin-top:8px; }
+    /* responsive small */
+    @media (max-width:600px){
+      button{ flex:1 1 auto; min-width:0; }
+      .controls{ gap:6px; }
+      .chip{ font-size:12px; padding:6px; }
+      input, select{ font-size:13px; }
+      th, td{ padding:8px 6px; font-size:12px; }
+      h1{ font-size:16px; }
+    }
+
+    /* Leverage calculator specific */
+    .calc-input { width:110px; padding:8px; border-radius:8px; background: #0b1220; border:1px solid #334155; color: #e6eef8; text-align:right; }
+    .calc-list { margin-top:8px; display:flex; flex-direction:column; gap:8px; }
+    .calc-item { display:flex; justify-content:space-between; gap:12px; border-radius:8px; padding:8px; border:1px solid rgba(255,255,255,0.03); }
+    .calc-item .danger { color: #ff9b9b; font-weight:700; }
+    .calc-add { display:flex; gap:8px; align-items:center; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Binance Futures — EMA70/EMA200 Cross Scanner + Leverage Calculator</h1>
+
+    <div class="topbar">
+      <div class="controls">
+        <div class="left">
+          <button id="startPoll" title="Start polling tickers">Start</button>
+          <button id="pausePoll" class="secondary" disabled title="Pause polling (keeps last results)">Pause</button>
+          <button id="refreshOnce" class="secondary" title="Fetch tickers once">Refresh</button>
+
+          <label class="chip input-inline" title="How often to poll (seconds)">
+            Poll (s):
+            <input id="pollInterval" type="number" min="5" value="10" style="width:76px;">
+          </label>
+
+          <label class="chip input-inline" title="Max symbols considered for EMA analysis">
+            Max symbols:
+            <input id="maxAnalyze" type="number" min="1" value="20" style="width:76px;">
+          </label>
+
+          <label class="chip input-inline" title="Analyze batch size">
+            Batch:
+            <input id="batchSize" type="number" min="1" value="5" style="width:64px;">
+          </label>
+
+          <label class="chip input-inline" title="Delay (ms) between each batch to avoid rate limits">
+            Delay (ms):
+            <input id="batchDelay" type="number" min="300" value="1200" style="width:80px;">
+          </label>
+
+          <button id="analyze" class="secondary" title="Run EMA cross analysis now">Analyze</button>
+        </div>
+
+        <div class="right" style="align-items:center;">
+          <label class="chip" title="Automatically run EMA analysis after polling">
+            <input id="autoAnalyzeToggle" type="checkbox" /> Auto
+          </label>
+
+          <label class="chip" title="Enable sound alerts">
+            <input id="soundToggle" type="checkbox" /> Sound
+          </label>
+
+          <div class="status" id="status" aria-live="polite">
+            <span class="dot idle" id="statusDot"></span>
+            <span id="statusText">idle — not polling</span>
+            <span class="muted" id="lastUpdated" style="margin-left:8px;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;">
+      <div style="flex:1;">
+        <input id="searchBox" placeholder="Search symbol (e.g. BTCUSDT) or filter by text..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #334155; background:var(--card); color:inherit;">
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="crossFilter" style="min-width:120px; padding:8px; border-radius:8px; background:var(--card); color:inherit;">
+          <option value="ALL">All crosses & symbols</option>
+          <option value="BULL">Bull crosses only</option>
+          <option value="BEAR">Bear crosses only</option>
+          <option value="NO_CROSS">No cross</option>
+        </select>
+
+        <select id="sortBy" style="min-width:160px; padding:8px; border-radius:8px; background:var(--card); color:inherit;">
+          <option value="volume_desc">Sort: QuoteVol (desc)</option>
+          <option value="volume_asc">Sort: QuoteVol (asc)</option>
+          <option value="change_desc">Sort: 24h % (desc)</option>
+          <option value="change_asc">Sort: 24h % (asc)</option>
+          <option value="symbol_asc">Sort: Symbol (A → Z)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid" id="grid">
+      <!-- Left: all pairs -->
+      <div class="card">
+        <h2>All USDT perpetual pairs <span class="muted" style="font-weight:500"> (first 500 shown)</span></h2>
+        <div class="muted">Use search / filter / sort to find symbols quickly.</div>
+
+        <div class="table-wrap card-body">
+          <table id="pairsTable" role="table" aria-label="Filtered pairs">
+            <thead>
+              <tr>
+                <th data-col="symbol">Symbol</th>
+                <th data-col="last">Last</th>
+                <th data-col="change">24h %</th>
+                <th data-col="vol">QuoteVol</th>
+                <th data-col="cross">EMA Cross</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="legend" style="margin-top:8px;">
+          <div class="badge"><span class="green">●</span> Bull cross</div>
+          <div class="badge"><span class="red">●</span> Bear cross</div>
+          <div class="badge">Click a symbol's chart link to open TradingView</div>
+        </div>
+      </div>
+
+      <!-- Right column: Leverage calculator + Top candidates -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <!-- Leverage Calculator Card -->
+        <div class="card">
+          <h2>📈 Leverage Profit & Loss Calculator</h2>
+          <div class="muted">Quick calculator for position P/L and liquidation warning.</div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label class="muted">🪙 Capital (margin)</label>
+              <input id="calcCapital" class="calc-input" type="number" min="0" value="10" />
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label class="muted">📊 Leverage</label>
+              <input id="calcLeverage" class="calc-input" type="number" min="1" value="20" />
+            </div>
+
+            <div class="calc-add">
+              <input id="calcInputPercent" type="number" placeholder="Add % move" class="calc-input" style="width:120px;" />
+              <button id="calcAddBtn" class="secondary" style="padding:8px 10px;">➕ Add</button>
+              <div style="flex:1"></div>
+            </div>
+
+            <div class="calc-list" id="calcList">
+              <!-- dynamic list items here -->
+            </div>
+
+            <div class="muted" style="font-size:12px;margin-top:6px;">
+              ⚠️ Approx. liquidation threshold: <span id="liqText" style="color:#ffd36b;font-weight:700;">0.00%</span> loss at <span id="liqLeverage">20x</span>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Top EMA cross candidates -->
+        <div class="card wide">
+          <h2>Top EMA cross candidates + trade setups</h2>
+          <div class="muted" style="margin-bottom:8px;">Setups are ATR-based (14 × 15m ATR). Entry uses last close.</div>
+
+          <div class="table-wrap card-body" style="padding-top:6px;">
+            <table id="topTable" role="table" aria-label="Top EMA candidates">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Cross</th>
+                  <th>24h %</th>
+                  <th>Dir</th>
+                  <th class="small">Entry</th>
+                  <th class="small">Stop</th>
+                  <th class="small">TP1</th>
+                  <th class="small">TP2</th>
+                  <th class="small">R:R1</th>
+                  <th class="small">R:R2</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="help">
+            Tips:
+            <ul style="margin:6px 0 0 18px; padding:0;">
+              <li>Click Start or Analyze once to unlock audio (required by browsers).</li>
+              <li>Enable Auto-analyze carefully — it fetches many klines (keep Max symbols low).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /*******************************************************
+   * Existing scanner code (trimmed versions of functions)
+   * For brevity I'll include essential parts used by UI:
+   *******************************************************/
+
+  const TICKER_24H = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
+  const KLINES = 'https://fapi.binance.com/fapi/v1/klines';
+  const INTERVAL = '15m';
+  const LOOKBACK_EMA200 = 240;
+
+  const blacklist = [ "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT","LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT","STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT","BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT","STRAXUSDT","COMBOUSDT","AI16ZUSDT","MILKUSDT","TOKENUSDT","SXPUSDT","MYROUSDT","1000XUSDT","DARUSDT" ];
+
+  // UI refs used later
+  const pairsTbody = document.querySelector('#pairsTable tbody');
+  const topTbody = document.querySelector('#topTable tbody');
+
+  // ... (full EMA/ATR/check functions used earlier remain unchanged) ...
+  // To keep this example concise I won't paste the whole scanner again.
+  // Assume your scanner code (safeFetch, emaSeries, computeATR, checkEMACross, fetchKlines, batchAnalyzeCross,
+  // handleCrossResultsAndPlaySound, pollTickersOnce, start/stop/analyze handlers) remain the same as in your working version.
+  // Place them here if you want a single-file copy. (They're unchanged.)
+
+  /*******************************************************
+   * NEW: Leverage calculator (vanilla JS)
+   *******************************************************/
+
+  (function leverageCalculatorInit(){
+    // DOM refs
+    const capitalInput = document.getElementById('calcCapital');
+    const leverageInput = document.getElementById('calcLeverage');
+    const percentInput = document.getElementById('calcInputPercent');
+    const addBtn = document.getElementById('calcAddBtn');
+    const listEl = document.getElementById('calcList');
+    const liqText = document.getElementById('liqText');
+    const liqLeverage = document.getElementById('liqLeverage');
+
+    // state
+    let capital = parseFloat(capitalInput.value) || 0;
+    let leverage = parseFloat(leverageInput.value) || 1;
+    let moves = [4,7,10]; // default moves
+
+    // helpers
+    function positionSize() { return capital * leverage; }
+    function liquidationThreshold() { return 100 / leverage; } // percent
+    function calcPL(percent) { // percent number (positive or negative)
+      return (percent / 100) * positionSize();
+    }
+
+    function formatMoney(n) {
+      return Number(n).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function renderList(){
+      listEl.innerHTML = '';
+      const sorted = Array.from(new Set(moves)).sort((a,b)=>a-b);
+      sorted.forEach(p => {
+        const isLiquidation = (Math.abs(p) >= liquidationThreshold());
+        const item = document.createElement('div');
+        item.className = 'calc-item';
+        // left: label + profit
+        const left = document.createElement('div');
+        left.style.display = 'flex';
+        left.style.flexDirection = 'column';
+        left.style.gap = '6px';
+        left.innerHTML = `<div>📈 ${p}% Gain → <span style="color:#6ee7b7;font-weight:700;">+ $${formatMoney(calcPL(p))}</span></div>
+                          <div>📉 ${p}% Loss → <span class="${isLiquidation ? 'danger' : ''}">- $${formatMoney(calcPL(-p))}</span></div>`;
+
+        // right: remove button and optional warning
+        const right = document.createElement('div');
+        right.style.display = 'flex';
+        right.style.flexDirection = 'column';
+        right.style.alignItems = 'flex-end';
+        right.style.justifyContent = 'space-between';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'secondary';
+        removeBtn.style.padding = '6px 8px';
+        removeBtn.textContent = '✖';
+        removeBtn.title = 'Remove';
+        removeBtn.onclick = ()=> {
+          moves = moves.filter(x => x !== p);
+          renderList();
+        };
+
+        right.appendChild(removeBtn);
+
+        if (isLiquidation) {
+          const warn = document.createElement('div');
+          warn.style.color = '#ff9b9b';
+          warn.style.fontSize = '12px';
+          warn.style.fontWeight = '700';
+          warn.textContent = '⚠️ Risk of Liquidation';
+          right.appendChild(warn);
+        }
+
+        item.appendChild(left);
+        item.appendChild(right);
+        listEl.appendChild(item);
+      });
+
+      // update liquidation text
+      liqText.textContent = liquidationThreshold().toFixed(2) + '%';
+      liqLeverage.textContent = leverage;
+    }
+
+    // initial render
+    renderList();
+
+    // events
+    addBtn.addEventListener('click', ()=> {
+      const val = parseFloat(percentInput.value);
+      if (!isNaN(val)) {
+        moves = Array.from(new Set([...moves, val]));
+        percentInput.value = '';
+        renderList();
+      }
+    });
+
+    percentInput.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter') addBtn.click();
+    });
+
+    capitalInput.addEventListener('input', ()=>{
+      const v = parseFloat(capitalInput.value);
+      capital = isFinite(v) ? v : 0;
+      renderList();
+    });
+    leverageInput.addEventListener('input', ()=>{
+      const v = parseFloat(leverageInput.value);
+      leverage = isFinite(v) && v > 0 ? v : 1;
+      renderList();
+    });
+
+    // expose for debugging (optional)
+    window.__leverageCalc = {
+      getState: ()=> ({ capital, leverage, moves, pos: positionSize(), liq: liquidationThreshold() })
+    };
+  })();
+
+  // NOTE: the remaining scanner functions (EMA, fetch, analyze) should be included below or already present.
+  // For clarity / brevity I didn't duplicate the entire scanner code again here.
+  // If you want the single-file version with both scanner + calculator together (scanner code included),
+  // tell me and I'll paste the exact full scanner code merged with the calculator.
+
+  </script>
+</body>
+</html>
