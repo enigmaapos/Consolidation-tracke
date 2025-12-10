@@ -335,71 +335,79 @@
     return atr;
   }
 
-  // Detect recent EMA70/EMA200 cross within crossWindow candles (returns cross timestamp)
-  function checkEMACross(klines, crossWindow = 3) {
-    if (!klines || klines.length < 210) return { ok:false };
-    const closes = klines.map(k=>k.c);
-    const ema70 = emaSeries(closes, 70);
-    const ema200 = emaSeries(closes, 200);
-    if (!ema70 || !ema200) return { ok:false };
+  // Detect recent EMA70/EMA200 cross within crossWindow candles (explicit prev/cur comparison)
+function checkEMACross(klines, crossWindow = 3) {
+  if (!klines || klines.length < 210) return { ok:false };
 
-    const diff = [];
-    const idxs = []; // absolute indices corresponding to diff entries
-    const n = ema70.length;
-    for (let i = n - (crossWindow + 1); i < n; i++) {
-      if (i >= 0) {
-        diff.push(ema70[i] - ema200[i]);
-        idxs.push(i);
-      }
-    }
-    if (diff.length < 2) return { ok:false };
+  // build closes and EMAs
+  const closes = klines.map(k => k.c);
+  const ema70 = emaSeries(closes, 70);
+  const ema200 = emaSeries(closes, 200);
+  if (!ema70 || !ema200) return { ok:false };
 
-    let crossType = null;
-    let crossIndexFromEnd = null;
-    let crossAbsIndex = null;
-    for (let j = 1; j < diff.length; j++) {
-      const prev = diff[j-1];
-      const cur = diff[j];
-      if (prev <= 0 && cur > 0) {
-        crossType = 'BULL';
-        crossIndexFromEnd = diff.length - 1 - j;
-        crossAbsIndex = idxs[j];
-        break;
-      }
-      if (prev >= 0 && cur < 0) {
-        crossType = 'BEAR';
-        crossIndexFromEnd = diff.length - 1 - j;
-        crossAbsIndex = idxs[j];
-        break;
-      }
-    }
+  const n = ema70.length;
+  // We'll inspect pairs of consecutive candles in the last (crossWindow+1) candles:
+  // for j from (n - (crossWindow + 1) + 1) .. n-1, compare (ema70[j-1], ema200[j-1]) -> (ema70[j], ema200[j])
+  const start = Math.max(1, n - (crossWindow + 1) + 1); // ensure j-1 is valid
+  let crossType = null;
+  let crossIndexFromEnd = null;
+  let crossAbsIndex = null;
 
-    const lastIdx = closes.length - 1;
-    const lastClose = closes[lastIdx];
-    const lastHigh = klines[lastIdx].h;
-    const lastLow = klines[lastIdx].l;
+  for (let j = start; j < n; j++) {
+    const prevIdx = j - 1;
+    const curIdx = j;
 
-    let crossTimestamp = null;
-    if (crossAbsIndex != null && klines[crossAbsIndex] && klines[crossAbsIndex].t) {
-      crossTimestamp = klines[crossAbsIndex].t; // Binance kline time in ms
+    const prev70 = ema70[prevIdx];
+    const prev200 = ema200[prevIdx];
+    const cur70 = ema70[curIdx];
+    const cur200 = ema200[curIdx];
+
+    if (prev70 == null || prev200 == null || cur70 == null || cur200 == null) continue;
+
+    // BULL: short-term crosses above long-term
+    if (prev70 < prev200 && cur70 > cur200) {
+      crossType = 'BULL';
+      // crossIndexFromEnd: how many candles ago (0 = latest candle)
+      crossIndexFromEnd = (n - 1) - curIdx;
+      crossAbsIndex = curIdx;
+      break;
     }
 
-    return {
-      ok: true,
-      ema70Series: ema70,
-      ema200Series: ema200,
-      crossType,
-      crossIndexFromEnd,
-      crossAbsIndex,
-      crossTimestamp,
-      lastClose,
-      lastHigh,
-      lastLow,
-      closes,
-      highs: klines.map(k=>k.h),
-      lows: klines.map(k=>k.l)
-    };
+    // BEAR: short-term crosses below long-term
+    if (prev70 > prev200 && cur70 < cur200) {
+      crossType = 'BEAR';
+      crossIndexFromEnd = (n - 1) - curIdx;
+      crossAbsIndex = curIdx;
+      break;
+    }
   }
+
+  const lastIdx = closes.length - 1;
+  const lastClose = closes[lastIdx];
+  const lastHigh = klines[lastIdx].h;
+  const lastLow = klines[lastIdx].l;
+
+  let crossTimestamp = null;
+  if (crossAbsIndex != null && klines[crossAbsIndex] && klines[crossAbsIndex].t) {
+    crossTimestamp = klines[crossAbsIndex].t; // ms since epoch from Binance klines
+  }
+
+  return {
+    ok: true,
+    ema70Series: ema70,
+    ema200Series: ema200,
+    crossType,
+    crossIndexFromEnd,
+    crossAbsIndex,
+    crossTimestamp,
+    lastClose,
+    lastHigh,
+    lastLow,
+    closes,
+    highs: klines.map(k=>k.h),
+    lows: klines.map(k=>k.l)
+  };
+}
 
   async function fetchKlines(symbol, interval=INTERVAL, limit=LOOKBACK_EMA200) {
     const params = { symbol, interval, limit };
