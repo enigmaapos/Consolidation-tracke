@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>EMA200 Consolidation Scanner — Binance Futures</title>
+<title>EMA200 Touch Scanner — Binance Futures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
 <style>
@@ -44,7 +44,7 @@
 
 <body>
 
-<h1>📊 EMA200 Consolidation Scanner (15m)</h1>
+<h1>📊 EMA200 Touch Scanner (15m • Last 24h)</h1>
 <div class="status" id="status">Idle</div>
 <button onclick="runScan()">Run Scan</button>
 
@@ -56,10 +56,8 @@ const API = 'https://fapi.binance.com';
 const TOP_N = 30;
 const TF = '15m';
 const EMA_LEN = 200;
-const CONSOL_CANDLES = 8;
-const MAX_RANGE_PCT = 1.2;      // consolidation range %
-const EMA_DISTANCE_PCT = 0.8;   // distance from EMA200 %
-const FETCH_DELAY_MS = 550;     // rate-limit safety
+const LOOKBACK_CANDLES = 96;   // 24h = 96 x 15m
+const FETCH_DELAY_MS = 550;
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 /* ========================================== */
 
@@ -88,27 +86,18 @@ function ema(values, len){
   return e;
 }
 
-/* ---------- Consolidation detector ---------- */
-function isConsolidating(klines){
-  const slice = klines.slice(-CONSOL_CANDLES);
-  const highs = slice.map(k=>+k[2]);
-  const lows  = slice.map(k=>+k[3]);
-  const closes= slice.map(k=>+k[4]);
+/* ---------- EMA200 TOUCH detector ---------- */
+function touchedEMA200Last24h(klines){
+  const closes = klines.map(k=>+k[4]);
+  const ema200 = ema(closes.slice(-EMA_LEN), EMA_LEN);
 
-  const maxH = Math.max(...highs);
-  const minL = Math.min(...lows);
-  const rangePct = ((maxH - minL) / closes[closes.length-1]) * 100;
+  const recent = klines.slice(-LOOKBACK_CANDLES);
 
-  const ema200 = ema(
-    klines.map(k=>+k[4]).slice(-EMA_LEN),
-    EMA_LEN
-  );
-
-  const lastClose = closes[closes.length-1];
-  const emaDistPct = Math.abs(lastClose - ema200) / ema200 * 100;
-
-  return rangePct <= MAX_RANGE_PCT &&
-         emaDistPct <= EMA_DISTANCE_PCT;
+  return recent.some(k => {
+    const high = +k[2];
+    const low  = +k[3];
+    return low <= ema200 && high >= ema200;
+  });
 }
 
 /* ---------- Core Scan ---------- */
@@ -139,19 +128,19 @@ async function runScan(){
     elStatus.textContent = `Scanning ${t.symbol}…`;
     try{
       const klines = await fetch(
-        `${API}/fapi/v1/klines?symbol=${t.symbol}&interval=${TF}&limit=210`
+        `${API}/fapi/v1/klines?symbol=${t.symbol}&interval=${TF}&limit=300`
       ).then(r=>r.json());
 
       if(klines.length < EMA_LEN) continue;
 
-      if(isConsolidating(klines)){
+      if(touchedEMA200Last24h(klines)){
         found++;
         const last = klines[klines.length-1];
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
           <div class="symbol good">${t.symbol}</div>
-          <div class="muted">15m consolidation near EMA200</div>
+          <div class="muted">Touched EMA200 within last 24h</div>
           <div class="muted">Last Price: ${(+last[4]).toFixed(6)}</div>
           <div class="muted">24h Change: ${(+t.priceChangePercent).toFixed(2)}%</div>
         `;
