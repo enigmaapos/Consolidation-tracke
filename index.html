@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>EMA200 Touch & Reclaim Scanner — Binance Futures</title>
+<title>EMA200 Touch & Distance Scanner — Binance Futures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
 <style>
@@ -45,7 +45,7 @@
 
 <body>
 
-<h1>📊 EMA200 Touch → Reclaim Scanner (15m)</h1>
+<h1>📊 EMA200 Touch → Distance Scanner (15m)</h1>
 <div class="status" id="status">Idle</div>
 <button onclick="runScan()">Run Scan</button>
 
@@ -87,7 +87,7 @@ function ema(values, len){
   return e;
 }
 
-/* ---------- EMA200 touch detector ---------- */
+/* ---------- EMA200 analysis ---------- */
 function analyzeEMA200(klines){
   const closes = klines.map(k=>+k[4]);
   const ema200 = ema(closes.slice(-EMA_LEN), EMA_LEN);
@@ -102,8 +102,9 @@ function analyzeEMA200(klines){
 
   const lastClose = closes[closes.length - 1];
   const aboveNow = lastClose > ema200;
+  const distancePct = Math.abs(lastClose - ema200) / ema200 * 100;
 
-  return { touched, aboveNow, ema200, lastClose };
+  return { touched, aboveNow, lastClose, distancePct };
 }
 
 /* ---------- Core Scan ---------- */
@@ -145,8 +146,8 @@ async function runScan(){
 
       const payload = {
         symbol: t.symbol,
-        change: +t.priceChangePercent,
-        last: res.lastClose
+        last: res.lastClose,
+        distance: res.distancePct
       };
 
       if(res.aboveNow) aboveEMA.push(payload);
@@ -156,9 +157,9 @@ async function runScan(){
     await sleep(FETCH_DELAY_MS);
   }
 
-  // sort both groups by 24h change
-  aboveEMA.sort((a,b)=>b.change - a.change);
-  belowEMA.sort((a,b)=>b.change - a.change);
+  // 🔑 SORT BY EMA DISTANCE (DESC)
+  aboveEMA.sort((a,b)=>b.distance - a.distance);
+  belowEMA.sort((a,b)=>b.distance - a.distance);
 
   let found = 0;
 
@@ -172,11 +173,11 @@ async function runScan(){
       </div>
       <div class="muted">
         ${type === 'above'
-          ? 'Reclaimed ABOVE EMA200'
-          : 'Still BELOW EMA200'}
+          ? 'Above EMA200 (Reclaim)'
+          : 'Below EMA200'}
       </div>
       <div class="muted">Last Price: ${item.last.toFixed(6)}</div>
-      <div class="muted">24h Change: ${item.change.toFixed(2)}%</div>
+      <div class="muted">EMA Distance: ${item.distance.toFixed(2)}%</div>
     `;
     elResults.appendChild(card);
   }
