@@ -147,7 +147,8 @@ async function runScan(){
       const payload = {
         symbol: t.symbol,
         last: res.lastClose,
-        distance: res.distancePct
+        distance: res.distancePct,
+        change24h: +t.priceChangePercent
       };
 
       if(res.aboveNow) aboveEMA.push(payload);
@@ -157,7 +158,7 @@ async function runScan(){
     await sleep(FETCH_DELAY_MS);
   }
 
-  // 🔑 SORT BY EMA DISTANCE (DESC)
+  // sort by EMA distance (DESC)
   aboveEMA.sort((a,b)=>b.distance - a.distance);
   belowEMA.sort((a,b)=>b.distance - a.distance);
 
@@ -178,6 +179,7 @@ async function runScan(){
       </div>
       <div class="muted">Last Price: ${item.last.toFixed(6)}</div>
       <div class="muted">EMA Distance: ${item.distance.toFixed(2)}%</div>
+      <div class="muted">24h Change: ${item.change24h.toFixed(2)}%</div>
     `;
     elResults.appendChild(card);
   }
