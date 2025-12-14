@@ -177,8 +177,8 @@ async function runScan(){
     await sleep(FETCH_DELAY_MS);
   }
 
-  aboveEMA.sort((a,b)=>b.distance - a.distance);
-  belowEMA.sort((a,b)=>b.distance - a.distance);
+  aboveEMA.sort((a,b)=>b.change24h - a.change24h);
+belowEMA.sort((a,b)=>b.change24h - a.change24h);
 
   let found = 0;
 
