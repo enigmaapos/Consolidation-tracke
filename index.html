@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>EMA200 Touch Scanner — Binance Futures</title>
+<title>EMA200 Touch & Reclaim Scanner — Binance Futures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
 <style>
@@ -39,12 +39,13 @@
   .symbol{font-weight:700;font-size:15px}
   .muted{color:#9fb3cc;font-size:13px}
   .good{color:#22c55e}
+  .warn{color:#fbbf24}
 </style>
 </head>
 
 <body>
 
-<h1>📊 EMA200 Touch Scanner (15m • Last 24h)</h1>
+<h1>📊 EMA200 Touch → Reclaim Scanner (15m)</h1>
 <div class="status" id="status">Idle</div>
 <button onclick="runScan()">Run Scan</button>
 
@@ -56,7 +57,7 @@ const API = 'https://fapi.binance.com';
 const TOP_N = 30;
 const TF = '15m';
 const EMA_LEN = 200;
-const LOOKBACK_CANDLES = 96;   // 24h = 96 x 15m
+const LOOKBACK_CANDLES = 96; // last 24h
 const FETCH_DELAY_MS = 550;
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 /* ========================================== */
@@ -86,18 +87,23 @@ function ema(values, len){
   return e;
 }
 
-/* ---------- EMA200 TOUCH detector ---------- */
-function touchedEMA200Last24h(klines){
+/* ---------- EMA200 touch detector ---------- */
+function analyzeEMA200(klines){
   const closes = klines.map(k=>+k[4]);
   const ema200 = ema(closes.slice(-EMA_LEN), EMA_LEN);
 
   const recent = klines.slice(-LOOKBACK_CANDLES);
 
-  return recent.some(k => {
+  const touched = recent.some(k => {
     const high = +k[2];
     const low  = +k[3];
     return low <= ema200 && high >= ema200;
   });
+
+  const lastClose = closes[closes.length - 1];
+  const aboveNow = lastClose > ema200;
+
+  return { touched, aboveNow, ema200, lastClose };
 }
 
 /* ---------- Core Scan ---------- */
@@ -108,12 +114,12 @@ async function runScan(){
   let tickers;
   try{
     tickers = await fetch(API + '/fapi/v1/ticker/24hr').then(r=>r.json());
-  }catch(e){
+  }catch{
     elStatus.textContent = 'Failed to fetch tickers';
     return;
   }
 
-  const topGreen = tickers
+  const universe = tickers
     .filter(t =>
       t.symbol.endsWith('USDT') &&
       +t.priceChangePercent > 0 &&
@@ -122,9 +128,10 @@ async function runScan(){
     .sort((a,b)=>b.priceChangePercent - a.priceChangePercent)
     .slice(0, TOP_N);
 
-  let found = 0;
+  const aboveEMA = [];
+  const belowEMA = [];
 
-  for(const t of topGreen){
+  for(const t of universe){
     elStatus.textContent = `Scanning ${t.symbol}…`;
     try{
       const klines = await fetch(
@@ -133,22 +140,49 @@ async function runScan(){
 
       if(klines.length < EMA_LEN) continue;
 
-      if(touchedEMA200Last24h(klines)){
-        found++;
-        const last = klines[klines.length-1];
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="symbol good">${t.symbol}</div>
-          <div class="muted">Touched EMA200 within last 24h</div>
-          <div class="muted">Last Price: ${(+last[4]).toFixed(6)}</div>
-          <div class="muted">24h Change: ${(+t.priceChangePercent).toFixed(2)}%</div>
-        `;
-        elResults.appendChild(card);
-      }
-    }catch(e){}
+      const res = analyzeEMA200(klines);
+      if(!res.touched) continue;
+
+      const payload = {
+        symbol: t.symbol,
+        change: +t.priceChangePercent,
+        last: res.lastClose
+      };
+
+      if(res.aboveNow) aboveEMA.push(payload);
+      else belowEMA.push(payload);
+
+    }catch{}
     await sleep(FETCH_DELAY_MS);
   }
+
+  // sort both groups by 24h change
+  aboveEMA.sort((a,b)=>b.change - a.change);
+  belowEMA.sort((a,b)=>b.change - a.change);
+
+  let found = 0;
+
+  function render(item, type){
+    found++;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="symbol ${type === 'above' ? 'good' : 'warn'}">
+        ${item.symbol}
+      </div>
+      <div class="muted">
+        ${type === 'above'
+          ? 'Reclaimed ABOVE EMA200'
+          : 'Still BELOW EMA200'}
+      </div>
+      <div class="muted">Last Price: ${item.last.toFixed(6)}</div>
+      <div class="muted">24h Change: ${item.change.toFixed(2)}%</div>
+    `;
+    elResults.appendChild(card);
+  }
+
+  aboveEMA.forEach(i => render(i,'above'));
+  belowEMA.forEach(i => render(i,'below'));
 
   elStatus.textContent =
     `Done • ${found} matches • Updated ${new Date().toLocaleString()}`;
