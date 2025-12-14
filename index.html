@@ -57,12 +57,23 @@ const TOP_N = 30;
 const TF = '15m';
 const EMA_LEN = 200;
 const CONSOL_CANDLES = 8;
-const MAX_RANGE_PCT = 1.2;     // total range %
-const EMA_DISTANCE_PCT = 0.8;  // distance from EMA200 %
-const FETCH_DELAY_MS = 550;    // rate-limit safety
+const MAX_RANGE_PCT = 1.2;      // consolidation range %
+const EMA_DISTANCE_PCT = 0.8;   // distance from EMA200 %
+const FETCH_DELAY_MS = 550;     // rate-limit safety
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 /* ========================================== */
 
+/* ---------- BLACKLIST ---------- */
+const BLACKLIST = new Set([
+  "ALPACAUSDT","BNXUSDT","ALPHAUSDT","OCEANUSDT","DGBUSDT","AGIXUSDT","LINAUSDT",
+  "LOKAUSDT","KEYUSDT","MDTUSDT","LOOMUSDT","RENUSDT","OMNIUSDT","SLERFUSDT",
+  "STMXUSDT","UXLINKUSDT","BSWUSDT","NEIROETHUSDT","VIDTUSDT","TROYUSDT",
+  "BAKEUSDT","AMBUSDT","MEMEFIUSDT","NULSUSDT","HIFIUSDT","LEVERUSDT","XEMUSDT",
+  "STRAXUSDT","COMBOUSDT","AI16ZUSDT","MILKUSDT","TOKENUSDT","SXPUSDT",
+  "MYROUSDT","1000XUSDT","DARUSDT"
+]);
+
+/* ---------- helpers ---------- */
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const elResults = document.getElementById('results');
 const elStatus  = document.getElementById('status');
@@ -88,23 +99,39 @@ function isConsolidating(klines){
   const minL = Math.min(...lows);
   const rangePct = ((maxH - minL) / closes[closes.length-1]) * 100;
 
-  const ema200 = ema(klines.map(k=>+k[4]).slice(-EMA_LEN), EMA_LEN);
+  const ema200 = ema(
+    klines.map(k=>+k[4]).slice(-EMA_LEN),
+    EMA_LEN
+  );
+
   const lastClose = closes[closes.length-1];
   const emaDistPct = Math.abs(lastClose - ema200) / ema200 * 100;
 
-  return rangePct <= MAX_RANGE_PCT && emaDistPct <= EMA_DISTANCE_PCT;
+  return rangePct <= MAX_RANGE_PCT &&
+         emaDistPct <= EMA_DISTANCE_PCT;
 }
 
 /* ---------- Core Scan ---------- */
 async function runScan(){
   elResults.innerHTML = '';
-  elStatus.textContent = 'Fetching top gainers…';
+  elStatus.textContent = 'Fetching top green pairs…';
 
-  const tickers = await fetch(API+'/fapi/v1/ticker/24hr').then(r=>r.json());
+  let tickers;
+  try{
+    tickers = await fetch(API + '/fapi/v1/ticker/24hr').then(r=>r.json());
+  }catch(e){
+    elStatus.textContent = 'Failed to fetch tickers';
+    return;
+  }
+
   const topGreen = tickers
-    .filter(t=>t.symbol.endsWith('USDT') && +t.priceChangePercent > 0)
+    .filter(t =>
+      t.symbol.endsWith('USDT') &&
+      +t.priceChangePercent > 0 &&
+      !BLACKLIST.has(t.symbol)
+    )
     .sort((a,b)=>b.priceChangePercent - a.priceChangePercent)
-    .slice(0,TOP_N);
+    .slice(0, TOP_N);
 
   let found = 0;
 
@@ -125,7 +152,7 @@ async function runScan(){
         card.innerHTML = `
           <div class="symbol good">${t.symbol}</div>
           <div class="muted">15m consolidation near EMA200</div>
-          <div class="muted">Last: ${(+last[4]).toFixed(4)}</div>
+          <div class="muted">Last Price: ${(+last[4]).toFixed(6)}</div>
           <div class="muted">24h Change: ${(+t.priceChangePercent).toFixed(2)}%</div>
         `;
         elResults.appendChild(card);
@@ -138,7 +165,7 @@ async function runScan(){
     `Done • ${found} matches • Updated ${new Date().toLocaleString()}`;
 }
 
-/* ---------- Auto refresh ---------- */
+/* ---------- Auto Refresh ---------- */
 runScan();
 setInterval(runScan, AUTO_REFRESH_MS);
 </script>
